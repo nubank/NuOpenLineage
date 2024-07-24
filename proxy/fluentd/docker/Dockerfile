@@ -1,4 +1,4 @@
-FROM fluent/fluentd:v1.16-debian-amd64-1
+FROM fluent/fluentd:v1.17.0-debian-amd64-1.0
 
 # Use root account to use apk
 USER root
@@ -11,6 +11,7 @@ RUN buildDeps="sudo make gcc g++ libc-dev" \
  && gem install ffi -v '1.15.5' --source 'https://rubygems.org/' \
  && gem install rusty_json_schema \
  && fluent-gem install fluent-plugin-out-http \
+ && fluent-gem install fluent-plugin-prometheus \
  && sudo gem sources --clear-all \
  && SUDO_FORCE_REMOVE=yes \
     apt-get purge -y --auto-remove \

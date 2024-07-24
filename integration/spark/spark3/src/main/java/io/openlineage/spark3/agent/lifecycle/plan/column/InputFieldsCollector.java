@@ -16,7 +16,7 @@ import io.openlineage.spark.agent.util.JdbcSparkUtils;
 import io.openlineage.spark.agent.util.PathUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
-import io.openlineage.spark3.agent.utils.PlanUtils3;
+import io.openlineage.spark3.agent.utils.DataSourceV2RelationDatasetExtractor;
 import io.openlineage.sql.SqlMeta;
 import java.net.URI;
 import java.util.ArrayList;
@@ -31,6 +31,7 @@ import org.apache.spark.rdd.RDD;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.HiveTableRelation;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
+import org.apache.spark.sql.catalyst.plans.logical.CreateTableAsSelect;
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode;
 import org.apache.spark.sql.catalyst.plans.logical.LocalRelation;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
@@ -58,6 +59,9 @@ public class InputFieldsCollector {
     // probably related to single code base for different Spark versions
     if ((plan.getClass()).isAssignableFrom(UnaryNode.class)) {
       collect(context, ((UnaryNode) plan).child());
+    } else if (plan instanceof CreateTableAsSelect
+        && (plan.children() == null || plan.children().isEmpty())) {
+      collect(context, ((CreateTableAsSelect) plan).query());
     } else if (plan.children() != null) {
       ScalaConversionUtils.<LogicalPlan>fromSeq(plan.children()).stream()
           .forEach(child -> collect(context, child));
@@ -163,7 +167,8 @@ public class InputFieldsCollector {
 
   private static List<DatasetIdentifier> extractDatasetIdentifier(
       ColumnLevelLineageContext context, DataSourceV2Relation relation) {
-    return PlanUtils3.getDatasetIdentifier(context.getOlContext(), relation)
+    return DataSourceV2RelationDatasetExtractor.getDatasetIdentifierExtended(
+            context.getOlContext(), relation)
         .map(Collections::singletonList)
         .orElse(Collections.emptyList());
   }

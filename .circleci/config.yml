@@ -49,10 +49,6 @@ jobs:
   determine_changed_modules:
     docker:
       - image: cimg/python:3.8
-    parameters:
-      nightly-run:
-        type: string
-        default: "inactive"
     steps:
       - checkout
       - run:
@@ -86,12 +82,12 @@ jobs:
             echo "$PWD/.circleci/workflows/openlineage-always.yml" >> workflow_files.txt
 
             # Nightly build - add workflows to be included
-            if [ "<< parameters.nightly-run >>" == "active" ]; then
+            if [ "<< pipeline.parameters.nightly-run >>" == "active" ]; then
+              # run only Spark within nightly build
               echo "$PWD/.circleci/workflows/openlineage-spark.yml" >> workflow_files.txt
-            fi
-
-            # If we are on the main branch, run all of the workflows
-            if [ "$CIRCLE_BRANCH" == "main" ]; then
+              echo "$PWD/.circleci/workflows/openlineage-java.yml" >> workflow_files.txt
+            elif [ "$CIRCLE_BRANCH" == "main" ]; then
+              # If we are on the main branch, run all of the workflows
               # if integration type is not all, we specify only a single integration type in workflow files
               if [ "<< pipeline.parameters.integration-type >>" != "*" ]; then
                 ls -d $PWD/.circleci/workflows/openlineage-integration-<< pipeline.parameters.integration-type >>.yml > workflow_files.txt
@@ -107,7 +103,6 @@ jobs:
               check_change client/java/ openlineage-java.yml openlineage-flink.yml openlineage-spark.yml
               check_change integration/spark/ openlineage-java.yml openlineage-spark.yml
               check_change integration/spark-extension-interfaces/ openlineage-java.yml openlineage-spark.yml
-              check_change integration/spark-extension-entrypoint/ openlineage-java.yml openlineage-spark.yml
               check_change integration/flink/ openlineage-java.yml openlineage-flink.yml
               check_change client/python/ openlineage-integration-python.yml openlineage-integration-dbt.yml openlineage-integration-dagster.yml openlineage-integration-airflow.yml
               check_change integration/common/ openlineage-integration-python.yml openlineage-integration-airflow.yml openlineage-integration-dbt.yml
