@@ -18,8 +18,8 @@ import io.openlineage.spark.agent.facets.builder.CustomEnvironmentFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.DatabricksEnvironmentFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.DebugRunFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.ErrorFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.GCPJobFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.GCPRunFacetBuilder;
+import io.openlineage.spark.agent.facets.builder.GcpJobFacetBuilder;
+import io.openlineage.spark.agent.facets.builder.GcpRunFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.LogicalPlanRunFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.OutputStatisticsOutputDatasetFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.OwnershipJobFacetBuilder;
@@ -58,6 +58,7 @@ import scala.PartialFunction;
  */
 class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
 
+  public static final String SPARK_VERSION_3 = "3";
   private final List<OpenLineageEventHandlerFactory> eventHandlerFactories;
   private final List<VisitorFactory> visitorFactory;
 
@@ -183,7 +184,7 @@ class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
                 generate(
                     eventHandlerFactories,
                     factory -> factory.createOutputDatasetFacetBuilders(context)));
-    if (context.getSparkVersion().startsWith("3")) {
+    if (SPARK_VERSION_3.compareTo(context.getSparkVersion()) < 0) {
       builder.add(new OutputStatisticsOutputDatasetFacetBuilder(context));
     }
     return builder.build();
@@ -216,7 +217,7 @@ class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
     if (DatabricksEnvironmentFacetBuilder.isDatabricksRuntime()) {
       listBuilder.add(new DatabricksEnvironmentFacetBuilder(context));
     } else if (GCPUtils.isDataprocRuntime()) {
-      listBuilder.add(new GCPRunFacetBuilder(context));
+      listBuilder.add(new GcpRunFacetBuilder(context));
     } else if (context.getCustomEnvironmentVariables() != null) {
       listBuilder.add(new CustomEnvironmentFacetBuilder(context));
     }
@@ -235,7 +236,7 @@ class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
 
     listBuilder.add(new OwnershipJobFacetBuilder(context));
     if (GCPUtils.isDataprocRuntime()) {
-      listBuilder.add(new GCPJobFacetBuilder(context));
+      listBuilder.add(new GcpJobFacetBuilder(context));
     }
     return listBuilder.build();
   }

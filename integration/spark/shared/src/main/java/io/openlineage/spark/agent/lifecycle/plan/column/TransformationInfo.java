@@ -35,7 +35,8 @@ public class TransformationInfo {
     SORT,
     GROUP_BY,
     JOIN,
-    FILTER
+    FILTER,
+    WINDOW
   }
 
   @Getter @Setter private Types type;
@@ -160,10 +161,8 @@ public class TransformationInfo {
         this.getMasking() || another.getMasking());
   }
 
-  public OpenLineage.ColumnLineageDatasetFacetFieldsAdditionalInputFieldsTransformations
-      toInputFieldsTransformations() {
-    return new OpenLineage
-            .ColumnLineageDatasetFacetFieldsAdditionalInputFieldsTransformationsBuilder()
+  public OpenLineage.InputFieldTransformations toInputFieldsTransformations() {
+    return new OpenLineage.InputFieldTransformationsBuilder()
         .type(type.name())
         .subtype(subType.name())
         .description(description)

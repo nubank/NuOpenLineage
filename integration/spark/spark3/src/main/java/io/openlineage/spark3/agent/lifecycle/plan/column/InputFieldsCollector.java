@@ -124,6 +124,12 @@ public class InputFieldsCollector {
       return extractDatasetIdentifier(context, relation);
     } else if (node instanceof LogicalRDD) {
       return extractDatasetIdentifier((LogicalRDD) node);
+    } else if (node instanceof LogicalRelation
+        && context
+            .getOlContext()
+            .getSparkExtensionVisitorWrapper()
+            .isDefinedAt(((LogicalRelation) node).relation())) {
+      return extractExtensionDatasetIdentifier(context, (LogicalRelation) node);
     } else if (node instanceof InMemoryRelation) {
       // implemented in
       // io.openlineage.spark3.agent.lifecycle.plan.column.ColumnLevelLineageUtils.collectInputsAndExpressionDependencies
@@ -135,6 +141,7 @@ public class InputFieldsCollector {
     } else if (node instanceof LeafNode) {
       log.warn("Could not extract dataset identifier from {}", node.getClass().getCanonicalName());
     }
+
     return Collections.emptyList();
   }
 
@@ -200,5 +207,14 @@ public class InputFieldsCollector {
     }
 
     return inputDatasets;
+  }
+
+  private static List<DatasetIdentifier> extractExtensionDatasetIdentifier(
+      ColumnLevelLineageContext context, LogicalRelation node) {
+    return Collections.singletonList(
+        context
+            .getOlContext()
+            .getSparkExtensionVisitorWrapper()
+            .getLineageDatasetIdentifier(node.relation(), context.getEvent().getClass().getName()));
   }
 }

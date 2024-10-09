@@ -8,23 +8,31 @@ package io.openlineage.spark.agent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
+import io.openlineage.client.Environment;
 import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.client.circuitBreaker.StaticCircuitBreakerConfig;
 import io.openlineage.client.dataset.namespace.resolver.DatasetNamespaceResolverConfig;
 import io.openlineage.client.transports.ApiKeyTokenProvider;
+import io.openlineage.client.transports.CompositeConfig;
 import io.openlineage.client.transports.ConsoleConfig;
 import io.openlineage.client.transports.HttpConfig;
 import io.openlineage.client.transports.KafkaConfig;
 import io.openlineage.client.transports.KinesisConfig;
 import io.openlineage.spark.api.SparkOpenLineageConfig;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 class ArgumentParserTest {
 
@@ -42,9 +50,13 @@ class ArgumentParserTest {
   private static final String TEST_TOKEN = "TOKEN";
 
   @Test
+  @SuppressWarnings({"deprecation"})
   void testDefaults() {
     config = ArgumentParser.parse(new SparkConf());
-    assertThat(config.getFacetsConfig().getDisabledFacets()).hasSize(2);
+    assertThat(config.getFacetsConfig().getDeprecatedDisabledFacets()).isEmpty();
+    assertThat(config.getFacetsConfig().getDisabledFacets())
+        .containsAllEntriesOf(
+            ImmutableMap.of("spark_unknown", true, "spark.logicalPlan", true, "debug", true));
     assertThat(config.getTransportConfig()).isInstanceOf(ConsoleConfig.class);
   }
 
@@ -87,6 +99,7 @@ class ArgumentParserTest {
   }
 
   @Test
+  @SuppressWarnings("ConstantConditions")
   void testConfToHttpConfig() {
     SparkConf sparkConf =
         new SparkConf()
@@ -153,6 +166,84 @@ class ArgumentParserTest {
   }
 
   @Test
+  void testLoadConfigFromEnvVars() {
+    try (MockedStatic mocked = mockStatic(Environment.class)) {
+      Map<String, String> sparkConfig = new HashMap<>();
+
+      sparkConfig.put("OPENLINEAGE__TRANSPORT__TYPE", "composite");
+      sparkConfig.put("OPENLINEAGE__TRANSPORT__CONTINUE_ON_FAILURE", "true");
+      sparkConfig.put("OPENLINEAGE__TRANSPORT__TRANSPORTS__KAVVKA__TYPE", "kafka");
+      sparkConfig.put("OPENLINEAGE__TRANSPORT__TRANSPORTS__KAVVKA__TOPIC_NAME", "test");
+      sparkConfig.put("OPENLINEAGE__TRANSPORT__TRANSPORTS__KAVVKA__MESSAGE_KEY", "explicit-key");
+      sparkConfig.put(
+          "OPENLINEAGE__TRANSPORT__TRANSPORTS__KAVVKA__PROPERTIES",
+          "{\"test1\": \"test1\", \"test2\": \"test2\"}");
+      sparkConfig.put("OPENLINEAGE__TRANSPORT__TRANSPORTS__LOCAL__TYPE", "http");
+      sparkConfig.put(
+          "OPENLINEAGE__TRANSPORT__TRANSPORTS__LOCAL__URL",
+          "http://your-openlineage-endpoint/api/v1/lineage");
+      when(Environment.getAllEnvironmentVariables()).thenReturn(sparkConfig);
+
+      SparkConf sparkConf = new SparkConf();
+      SparkOpenLineageConfig config = ArgumentParser.parse(sparkConf);
+      CompositeConfig transportConfig = (CompositeConfig) config.getTransportConfig();
+      assertEquals(
+          "http://your-openlineage-endpoint/api/v1/lineage",
+          ((HttpConfig) transportConfig.getTransports().get(0)).getUrl().toString());
+      KafkaConfig kafkaConfig = (KafkaConfig) transportConfig.getTransports().get(1);
+      assertEquals("test", kafkaConfig.getTopicName());
+      assertEquals("explicit-key", kafkaConfig.getMessageKey());
+      assertEquals("test1", kafkaConfig.getProperties().get("test1"));
+      assertEquals("test2", kafkaConfig.getProperties().get("test2"));
+      assertEquals("kavvka", kafkaConfig.getName());
+    }
+  }
+
+  @Test
+  void testLoadConfigPrecedence() {
+    try (MockedStatic mocked = mockStatic(Environment.class)) {
+      when(Environment.getAllEnvironmentVariables())
+          .thenReturn(Collections.singletonMap("OPENLINEAGE__TRANSPORT__TYPE", "console"));
+
+      SparkConf sparkConf =
+          new SparkConf()
+              .set("spark.openlineage.transport.type", "http")
+              .set("spark.openlineage.transport.url", URL);
+      SparkOpenLineageConfig config = ArgumentParser.parse(sparkConf);
+      assertThat(config.getTransportConfig()).isInstanceOf(HttpConfig.class);
+    }
+  }
+
+  @Test
+  void testConfToCompositeTransport() {
+    SparkConf sparkConf =
+        new SparkConf()
+            .set("spark.openlineage.transport.type", "composite")
+            .set("spark.openlineage.transport.continueOnFailure", "true")
+            .set("spark.openlineage.transport.transports.kavvka.type", "kafka")
+            .set("spark.openlineage.transport.transports.kavvka.topicName", "test")
+            .set("spark.openlineage.transport.transports.kavvka.messageKey", "explicit-key")
+            .set("spark.openlineage.transport.transports.kavvka.properties.test1", "test1")
+            .set("spark.openlineage.transport.transports.kavvka.properties.test2", "test2")
+            .set("spark.openlineage.transport.transports.local.type", "http")
+            .set(
+                "spark.openlineage.transport.transports.local.url",
+                "http://your-openlineage-endpoint/api/v1/lineage");
+
+    SparkOpenLineageConfig config = ArgumentParser.parse(sparkConf);
+    CompositeConfig transportConfig = (CompositeConfig) config.getTransportConfig();
+    assertEquals(
+        "http://your-openlineage-endpoint/api/v1/lineage",
+        ((HttpConfig) transportConfig.getTransports().get(1)).getUrl().toString());
+    KafkaConfig kafkaConfig = (KafkaConfig) transportConfig.getTransports().get(0);
+    assertEquals("test", kafkaConfig.getTopicName());
+    assertEquals("explicit-key", kafkaConfig.getMessageKey());
+    assertEquals("test1", kafkaConfig.getProperties().get("test1"));
+    assertEquals("test2", kafkaConfig.getProperties().get("test2"));
+    assertEquals("kavvka", kafkaConfig.getName());
+  }
+
+  @Test
   void testCircuitBreakerConfig() {
     SparkConf sparkConf =
         new SparkConf()
@@ -166,24 +257,52 @@ class ArgumentParserTest {
   }
 
   @Test
-  void testDisabledFacetsFromSparkConf() {
+  @SuppressWarnings("deprecation")
+  void testDeprecatedDisabledFacetsFromSparkConf() {
     SparkConf sparkConf = new SparkConf().set("spark.openlineage.facets.disabled", "[a;b]");
     SparkOpenLineageConfig config = ArgumentParser.parse(sparkConf);
-    assertThat(config.getFacetsConfig().getDisabledFacets()).containsExactly("a", "b");
+    String[] disabledFacets = config.getFacetsConfig().getDeprecatedDisabledFacets();
+    assertThat(disabledFacets).containsExactly("a", "b");
 
     // test empty value
     sparkConf = new SparkConf().set("spark.openlineage.facets.disabled", "");
-    assertThat(ArgumentParser.parse(sparkConf).getFacetsConfig().getDisabledFacets()).hasSize(0);
+    assertThat(ArgumentParser.parse(sparkConf).getFacetsConfig().getDeprecatedDisabledFacets())
+        .hasSize(0);
 
     // test empty list
     sparkConf = new SparkConf().set("spark.openlineage.facets.disabled", "[]");
-    assertThat(ArgumentParser.parse(sparkConf).getFacetsConfig().getDisabledFacets()).hasSize(0);
+    assertThat(ArgumentParser.parse(sparkConf).getFacetsConfig().getDeprecatedDisabledFacets())
+        .hasSize(0);
 
-    assertThat(ArgumentParser.parse(new SparkConf()).getFacetsConfig().getDisabledFacets())
-        .hasSize(2);
+    assertThat(
+            ArgumentParser.parse(new SparkConf()).getFacetsConfig().getDeprecatedDisabledFacets())
+        .hasSize(0);
   }
 
   @Test
+  @SuppressWarnings("deprecation")
+  void testDisabledFacetsFromSparkConf() {
+    SparkConf sparkConf = new SparkConf().set("spark.openlineage.facets.disabled", "[a;b]");
+    SparkOpenLineageConfig config = ArgumentParser.parse(sparkConf);
+    assertThat(config.getFacetsConfig().getDeprecatedDisabledFacets()).containsExactly("a", "b");
+
+    // test empty value
+    sparkConf = new SparkConf().set("spark.openlineage.facets.disabled", "");
+    assertThat(ArgumentParser.parse(sparkConf).getFacetsConfig().getDeprecatedDisabledFacets())
+        .hasSize(0);
+
+    // test empty list
+    sparkConf = new SparkConf().set("spark.openlineage.facets.disabled", "[]");
+    assertThat(ArgumentParser.parse(sparkConf).getFacetsConfig().getDeprecatedDisabledFacets())
+        .hasSize(0);
+
+    assertThat(
+            ArgumentParser.parse(new SparkConf()).getFacetsConfig().getDeprecatedDisabledFacets())
+        .hasSize(0);
+  }
+
+  @Test
+  @SuppressWarnings({"deprecation", "UnstableApiUsage", "ConstantConditions"})
   void testConfigReadFromYamlFile() {
     String propertyBefore = System.getProperty("user.dir");
     System.setProperty("user.dir", Resources.getResource("config").getPath());
@@ -196,12 +315,16 @@ class ArgumentParserTest {
     HttpConfig httpConfig = (HttpConfig) config.getTransportConfig();
     assertThat(httpConfig.getUrl().toString()).isEqualTo("http://localhost:1010");
     assertThat(httpConfig.getAuth().getToken()).isEqualTo("Bearer random_token");
-    assertThat(config.getDebugFacet()).isEqualTo("enabled");
     assertThat(config.getJobName().getAppendDatasetName()).isFalse();
-    assertThat(config.getFacetsConfig().getDisabledFacets()[0]).isEqualTo("aDisabledFacet");
+    assertThat(config.getFacetsConfig().getDeprecatedDisabledFacets()[0])
+        .isEqualTo("aDisabledFacet");
+    assertThat(config.getFacetsConfig().getDisabledFacets())
+        .containsAllEntriesOf(
+            ImmutableMap.of("spark_unknown", false, "spark.logicalPlan", true, "debug", true));
   }
 
   @Test
+  @SuppressWarnings({"UnstableApiUsage", "ConstantConditions"})
   void testSparkConfOverwritesFileBasedConfig() {
     SparkConf sparkConf =
         new SparkConf()

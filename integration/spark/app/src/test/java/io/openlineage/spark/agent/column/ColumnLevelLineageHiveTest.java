@@ -30,14 +30,11 @@ import org.apache.spark.sql.SparkSession$;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.QueryExecution;
 import org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionEnd;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 @Slf4j
-@EnabledIfSystemProperty(named = "spark.version", matches = "(3.*)")
+@EnabledIfSystemProperty(named = "spark.version", matches = "([34].*)")
 class ColumnLevelLineageHiveTest {
 
   private static final String FILE = "file";
@@ -103,6 +100,13 @@ class ColumnLevelLineageHiveTest {
     spark.sql("DROP TABLE IF EXISTS t1");
     spark.sql("DROP TABLE IF EXISTS t2");
     spark.sql("DROP TABLE IF EXISTS t");
+  }
+
+  @AfterEach
+  @SneakyThrows
+  public void afterEach() {
+    FileSystem.get(spark.sparkContext().hadoopConfiguration())
+        .delete(new Path("/tmp/column_non_v2/"), true);
   }
 
   @Test

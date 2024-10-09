@@ -7,6 +7,7 @@ package io.openlineage.spark.agent;
 
 import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_LOG4J2_PROPERTIES_PATH;
 import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_LOG4J_PROPERTIES_PATH;
+import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_SPARK_HOME_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_SPARK_JARS_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.HOST_ADDITIONAL_JARS_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.HOST_DEPENDENCIES_DIR;
@@ -41,8 +42,7 @@ import org.testcontainers.utility.DockerImageName;
 
 @Slf4j
 public class SparkContainerUtils {
-  public static final String SPARK_DOCKER_CONTAINER_WAIT_MESSAGE =
-      ".*ShutdownHookManager - Shutdown hook called.*";
+  public static final String SPARK_DOCKER_CONTAINER_WAIT_MESSAGE = ".*Shutdown hook called.*";
 
   public static final DockerImageName MOCKSERVER_IMAGE =
       DockerImageName.parse("mockserver/mockserver")
@@ -64,7 +64,6 @@ public class SparkContainerUtils {
             .withPassword("password")
             .withDatabaseName("test")
             .withExposedPorts(5432);
-
     final Path basePath = Paths.get("src/test/resources/metastore_psql/").toAbsolutePath();
     mountPath(
         container,
@@ -207,15 +206,16 @@ public class SparkContainerUtils {
     addSparkConfig(sparkConf, "spark.sql.shuffle.partitions=1");
     addSparkConfig(sparkConf, "spark.driver.extraJavaOptions=-Dderby.system.home=/tmp/derby");
     addSparkConfig(sparkConf, "spark.jars.ivy=/tmp/.ivy2/");
-    addSparkConfig(sparkConf, "spark.openlineage.facets.disabled=");
+    addSparkConfig(sparkConf, "spark.openlineage.facets.spark.logicalPlan.disabled=false");
+    addSparkConfig(sparkConf, "spark.openlineage.facets.spark_unknown.disabled=false");
     addSparkConfig(
         sparkConf, "spark.openlineage.dataset.namespaceResolvers.kafka-cluster-prod.type=hostList");
     addSparkConfig(
         sparkConf,
         "spark.openlineage.dataset.namespaceResolvers.kafka-cluster-prod.hosts=[kafka-host;kafka-host-other]");
 
-    List<String> sparkSubmit =
-        new ArrayList(Arrays.asList("./bin/spark-submit", "--master", "local"));
+    String sparkSubmitPath = CONTAINER_SPARK_HOME_DIR + "/bin/spark-submit";
+    List<String> sparkSubmit = new ArrayList(Arrays.asList(sparkSubmitPath, "--master", "local"));
     sparkSubmit.addAll(sparkConf);
     sparkSubmit.addAll(
         Arrays.asList(

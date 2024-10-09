@@ -6,13 +6,17 @@
 package io.openlineage.spark.api;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
 import io.openlineage.client.OpenLineageConfig;
 import io.openlineage.client.circuitBreaker.CircuitBreakerConfig;
 import io.openlineage.client.dataset.DatasetConfig;
 import io.openlineage.client.transports.FacetsConfig;
 import io.openlineage.client.transports.TransportConfig;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
@@ -21,24 +25,27 @@ import lombok.ToString;
 
 /** Config class to store entries which are specific only to Spark integration. */
 @Getter
+@Setter
 @NoArgsConstructor
 @ToString
 public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageConfig> {
+  public static List<String> DISABLED_BY_DEFAULT =
+      ImmutableList.of("spark_unknown", "spark.logicalPlan", "debug");
 
   public static final String DEFAULT_NAMESPACE = "default";
-  public static final String[] DEFAULT_DISABLED_FACETS =
-      new String[] {"spark_unknown", "spark.logicalPlan"};
-  public static final String DEFAULT_DEBUG_FACET = "disabled";
 
-  @Setter @NonNull private String namespace;
-  @Setter @Getter private String parentJobName;
-  @Setter @Getter private String parentJobNamespace;
-  @Setter @Getter private String parentRunId;
-  @Setter @Getter private String overriddenAppName;
-  @Setter @NonNull private String debugFacet;
-  @Setter @Getter private String testExtensionProvider;
-  @Setter private JobNameConfig jobName;
-  @Setter private JobConfig job;
+  @NonNull private String namespace;
+  private String parentJobName;
+  private String parentJobNamespace;
+  private String parentRunId;
+  private String overriddenAppName;
+  @NonNull private String debugFacet;
+  private String testExtensionProvider;
+  private JobNameConfig jobName;
+  private JobConfig job;
+
+  @JsonProperty("columnLineage")
+  private ColumnLineageConfig columnLineageConfig;
 
   public SparkOpenLineageConfig(
       String namespace,
@@ -46,7 +53,6 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
       String parentJobNamespace,
       String parentRunId,
       String overriddenAppName,
-      String debugFacet,
       String testExtensionProvider,
       JobNameConfig jobName,
       JobConfig job,
@@ -54,17 +60,18 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
       FacetsConfig facetsConfig,
       DatasetConfig datasetConfig,
       CircuitBreakerConfig circuitBreaker,
-      Map<String, Object> metricsConfig) {
+      Map<String, Object> metricsConfig,
+      ColumnLineageConfig columnLineageConfig) {
     super(transportConfig, facetsConfig, datasetConfig, circuitBreaker, metricsConfig);
     this.namespace = namespace;
     this.parentJobName = parentJobName;
     this.parentJobNamespace = parentJobNamespace;
     this.parentRunId = parentRunId;
     this.overriddenAppName = overriddenAppName;
-    this.debugFacet = debugFacet;
     this.testExtensionProvider = testExtensionProvider;
     this.jobName = jobName;
     this.job = job;
+    this.columnLineageConfig = columnLineageConfig;
   }
 
   @Override
@@ -72,9 +79,18 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
     if (facetsConfig == null) {
       facetsConfig = new FacetsConfig();
     }
-    if (facetsConfig.getDisabledFacets() == null) {
-      facetsConfig.setDisabledFacets(DEFAULT_DISABLED_FACETS);
+    if (facetsConfig.getDeprecatedDisabledFacets() == null) {
+      facetsConfig.setDeprecatedDisabledFacets(new String[] {});
     }
+    if (facetsConfig.getDisabledFacets() == null) {
+      facetsConfig.setDisabledFacets(new HashMap<>());
+    } else {
+      Map<String, Boolean> DISABLED_BY_DEFAULT_MAP =
+          DISABLED_BY_DEFAULT.stream().collect(Collectors.toMap(facet -> facet, facet -> true));
+      facetsConfig.setDisabledFacets(
+          mergePropertyWith(DISABLED_BY_DEFAULT_MAP, facetsConfig.getDisabledFacets()));
+    }
+
     return facetsConfig;
   }
 
@@ -92,31 +108,35 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
     return namespace;
   }
 
-  public String getDebugFacet() {
-    if (debugFacet == null) {
-      debugFacet = DEFAULT_DEBUG_FACET;
+  public ColumnLineageConfig getColumnLineageConfig() {
+    if (columnLineageConfig == null) {
+      columnLineageConfig = new ColumnLineageConfig();
+      // TODO #3084: For the release 1.26.0 this flag should default to true
+      columnLineageConfig.setDatasetLineageEnabled(false);
     }
-    return debugFacet;
+    return columnLineageConfig;
   }
 
   @Getter
+  @Setter
   @ToString
   public static class JobNameConfig {
-    @Setter @Getter @NonNull private Boolean appendDatasetName = true;
-    @Setter @Getter @NonNull private Boolean replaceDotWithUnderscore = false;
+    @NonNull private Boolean appendDatasetName = true;
+    @NonNull private Boolean replaceDotWithUnderscore = false;
   }
 
   @Getter
+  @Setter
   @ToString
   public static class JobConfig {
-    @Setter @Getter private JobOwnersConfig owners;
+    private JobOwnersConfig owners;
   }
 
   @Getter
   @ToString
   public static class JobOwnersConfig {
-    @JsonAnySetter @Setter @Getter @NonNull
-    private Map<String, String> additionalProperties = new HashMap<>();
+    @JsonAnySetter @NonNull
+    private final Map<String, String> additionalProperties = new HashMap<>();
   }
 
   @Override
@@ -127,7 +147,6 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
         mergePropertyWith(parentJobNamespace, other.parentJobNamespace),
         mergePropertyWith(parentRunId, other.parentRunId),
         mergePropertyWith(overriddenAppName, other.overriddenAppName),
-        mergeWithDefaultValue(debugFacet, other.debugFacet, DEFAULT_DEBUG_FACET),
         mergePropertyWith(testExtensionProvider, other.testExtensionProvider),
         mergePropertyWith(jobName, other.jobName),
         mergePropertyWith(job, other.job),
@@ -135,6 +154,7 @@ public class SparkOpenLineageConfig extends OpenLineageConfig<SparkOpenLineageCo
         mergePropertyWith(facetsConfig, other.facetsConfig),
         mergePropertyWith(datasetConfig, other.datasetConfig),
         mergePropertyWith(circuitBreaker, other.circuitBreaker),
-        mergePropertyWith(metricsConfig, other.metricsConfig));
+        mergePropertyWith(metricsConfig, other.metricsConfig),
+        mergePropertyWith(columnLineageConfig, other.columnLineageConfig));
   }
 }

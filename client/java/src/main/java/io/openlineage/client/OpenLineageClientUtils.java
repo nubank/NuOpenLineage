@@ -20,6 +20,8 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.openlineage.client.OpenLineage.RunEvent;
+import io.openlineage.client.utils.OpenLineageEnvParser;
+import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +30,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -87,6 +90,7 @@ public final class OpenLineageClientUtils {
     if (disableFacets == null) {
       return;
     }
+    log.info("Disabled facets: {}", Arrays.toString(disableFacets));
     SimpleFilterProvider simpleFilterProvider =
         new SimpleFilterProvider()
             .addFilter(
@@ -272,6 +276,34 @@ public final class OpenLineageClientUtils {
     } catch (IOException e) {
       throw new OpenLineageClientException(e);
     }
+  }
+
+  /**
+   * This method reads the OpenLineage configuration from environment variables, converts it to a
+   * JSON string, and then parses the JSON string into an instance of the specified {@link
+   * OpenLineageConfig} subclass.
+   *
+   * @param valueTypeRef The type to convert the JSON string into.
+   * @return An instance of {@link OpenLineageConfig} containing the parsed JSON configuration.
+   * @throws OpenLineageClientException If an error occurs while reading or parsing the
+   *     configuration.
+   * @param <T> generic type of merged config
+   */
+  public static <T extends OpenLineageConfig> T loadOpenLineageConfigFromEnvVars(
+      TypeReference<T> valueTypeRef) throws OpenLineageClientException {
+    String result;
+    if (!OpenLineageEnvParser.OpenLineageEnvVarsExist()) {
+      throw new OpenLineageClientException("No OpenLineage environment variables found");
+    }
+    try {
+      result = OpenLineageEnvParser.parseAllOpenLineageEnvVars();
+    } catch (JsonProcessingException e) {
+      throw new OpenLineageClientException(e);
+    }
+
+    byte[] jsonBytes = result.getBytes();
+    InputStream inputStream = new ByteArrayInputStream(jsonBytes);
+    return loadOpenLineageConfigJson(inputStream, valueTypeRef);
   }
 
   /**

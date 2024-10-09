@@ -16,14 +16,16 @@ import io.openlineage.client.OpenLineage.RunEvent;
 import io.openlineage.client.OpenLineage.RunEvent.EventType;
 import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.spark.agent.EventEmitter;
-import io.openlineage.spark.agent.Versions;
 import io.openlineage.spark.agent.filters.EventFilterUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
-import io.openlineage.spark.api.JobNameBuilder;
+import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.OpenLineageContext;
+import io.openlineage.spark.api.naming.JobNameBuilder;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.ActiveJob;
@@ -34,6 +36,7 @@ import org.apache.spark.scheduler.SparkListenerJobEnd;
 import org.apache.spark.scheduler.SparkListenerJobStart;
 import org.apache.spark.scheduler.SparkListenerStageCompleted;
 import org.apache.spark.scheduler.SparkListenerStageSubmitted;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.QueryExecution;
 import org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionEnd;
 import org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionStart;
@@ -51,7 +54,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
   private final OpenLineageContext olContext;
   private final EventEmitter eventEmitter;
   private final OpenLineageRunEventBuilder runEventBuilder;
-  private final OpenLineage openLineage = new OpenLineage(Versions.OPEN_LINEAGE_PRODUCER_URI);
 
   private boolean emittedOnSqlExecutionStart = false;
   private boolean emittedOnSqlExecutionEnd = false;
@@ -59,6 +61,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
   private boolean emittedOnJobEnd = false;
   private Integer activeJobId;
   private AtomicBoolean finished = new AtomicBoolean(false);
+
+  private SparkSQLQueryParser sqlRecorder = new SparkSQLQueryParser();
 
   public SparkSQLExecutionContext(
       long executionId,
@@ -91,19 +95,20 @@ class SparkSQLExecutionContext implements ExecutionContext {
     // EventType eventType = emittedOnJobStart ? RUNNING : START;
     // emittedOnSqlExecutionStart = true;
 
-    // RunEvent event =
-    //     runEventBuilder.buildRun(
-    //         OpenLineageRunEventContext.builder()
-    //             .applicationParentRunFacet(buildApplicationParentFacet())
-    //             .event(startEvent)
-    //             .runEventBuilder(
-    //                 openLineage
-    //                     .newRunEventBuilder()
-    //                     .eventTime(toZonedTime(startEvent.time()))
-    //                     .eventType(eventType))
-    //             .jobBuilder(buildJob())
-    //             .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-    //             .build());
+//    RunEvent event =
+//        runEventBuilder.buildRun(
+//            OpenLineageRunEventContext.builder()
+//                .applicationParentRunFacet(buildApplicationParentFacet())
+//                .event(startEvent)
+//                .runEventBuilder(
+//                    olContext
+//                        .getOpenLineage()
+//                        .newRunEventBuilder()
+//                        .eventTime(toZonedTime(startEvent.time()))
+//                        .eventType(eventType))
+//                .jobBuilder(buildJob())
+//                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
+//                .build());
 
     // log.debug("Posting event for start {}: {}", executionId, event);
     // eventEmitter.emit(event);
@@ -143,7 +148,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .applicationParentRunFacet(buildApplicationParentFacet())
                 .event(endEvent)
                 .runEventBuilder(
-                    openLineage
+                    olContext
+                        .getOpenLineage()
                         .newRunEventBuilder()
                         .eventTime(toZonedTime(endEvent.time()))
                         .eventType(eventType))
@@ -175,7 +181,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .applicationParentRunFacet(buildApplicationParentFacet())
                 .event(stageSubmitted)
                 .runEventBuilder(
-                    openLineage
+                    olContext
+                        .getOpenLineage()
                         .newRunEventBuilder()
                         .eventTime(ZonedDateTime.now(ZoneOffset.UTC))
                         .eventType(RUNNING))
@@ -204,7 +211,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .applicationParentRunFacet(buildApplicationParentFacet())
                 .event(stageCompleted)
                 .runEventBuilder(
-                    openLineage
+                    olContext
+                        .getOpenLineage()
                         .newRunEventBuilder()
                         .eventTime(ZonedDateTime.now(ZoneOffset.UTC))
                         .eventType(RUNNING))
@@ -263,7 +271,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .applicationParentRunFacet(buildApplicationParentFacet())
                 .event(jobStart)
                 .runEventBuilder(
-                    openLineage
+                    olContext
+                        .getOpenLineage()
                         .newRunEventBuilder()
                         .eventTime(toZonedTime(jobStart.time()))
                         .eventType(eventType))
@@ -311,7 +320,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .applicationParentRunFacet(buildApplicationParentFacet())
                 .event(jobEnd)
                 .runEventBuilder(
-                    openLineage
+                    olContext
+                        .getOpenLineage()
                         .newRunEventBuilder()
                         .eventTime(toZonedTime(jobEnd.time()))
                         .eventType(eventType))
@@ -337,7 +347,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
   }
 
   protected OpenLineage.JobBuilder buildJob() {
-    return openLineage
+    return olContext
+        .getOpenLineage()
         .newJobBuilder()
         .name(JobNameBuilder.build(olContext))
         .namespace(this.eventEmitter.getJobNamespace());
@@ -360,7 +371,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
       processingType = SPARK_PROCESSING_TYPE_BATCH;
     }
 
-    return openLineage
+    return olContext
+        .getOpenLineage()
         .newJobTypeJobFacetBuilder()
         .jobType(SPARK_JOB_TYPE)
         .processingType(processingType)
@@ -369,6 +381,64 @@ class SparkSQLExecutionContext implements ExecutionContext {
   }
 
   private OpenLineage.JobFacetsBuilder getJobFacetsBuilder(QueryExecution queryExecution) {
-    return openLineage.newJobFacetsBuilder().jobType(getJobTypeJobFacet(queryExecution));
+
+    OpenLineage.JobFacetsBuilder builder =
+        olContext
+            .getOpenLineage()
+            .newJobFacetsBuilder()
+            .jobType(getJobTypeJobFacet(queryExecution));
+
+    Optional<OpenLineage.SQLJobFacet> sqlFacets = resolveSQLFacets(queryExecution);
+
+    sqlFacets.ifPresent(builder::sql);
+
+    return builder;
+  }
+
+  Optional<OpenLineage.SQLJobFacet> resolveSQLFacets(QueryExecution queryExecution) {
+    LogicalPlan logicalPlan = queryExecution.logical();
+
+    String query = null;
+
+    Stack<LogicalPlan> stack = new Stack<>();
+
+    if (logicalPlan != null) {
+      stack.add(logicalPlan);
+    }
+
+    boolean found = false;
+
+    while (!stack.isEmpty() && !found) {
+      int stackLength = stack.size();
+
+      while (stackLength > 0) {
+        LogicalPlan currentLogicalPlan = stack.pop();
+
+        if (currentLogicalPlan == null) {
+          continue;
+        }
+
+        Optional<String> parsedQuery = sqlRecorder.parse(currentLogicalPlan);
+
+        if (currentLogicalPlan.origin() != null && parsedQuery.isPresent()) {
+          query = parsedQuery.get();
+          found = true;
+          break;
+        }
+
+        List<LogicalPlan> javaChildren =
+            ScalaConversionUtils.fromSeq(currentLogicalPlan.children());
+
+        stack.addAll(javaChildren);
+
+        stackLength--;
+      }
+    }
+
+    if (query == null) {
+      return Optional.empty();
+    }
+
+    return Optional.of(olContext.getOpenLineage().newSQLJobFacetBuilder().query(query).build());
   }
 }

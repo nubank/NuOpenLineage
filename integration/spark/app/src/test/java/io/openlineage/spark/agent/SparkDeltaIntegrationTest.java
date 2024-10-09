@@ -92,7 +92,6 @@ class SparkDeltaIntegrationTest {
             .config(
                 "spark.openlineage.transport.url",
                 "http://localhost:" + mockServer.getPort() + "/api/v1/namespaces/delta-namespace")
-            .config("spark.openlineage.facets.disabled", "spark_unknown;spark.logicalPlan")
             .config(
                 "spark.openlineage.facets.custom_environment_variables",
                 "[" + getAvailableEnvVariable() + ";]")
@@ -469,6 +468,35 @@ class SparkDeltaIntegrationTest {
     spark.sql("CREATE TABLE t2 USING delta AS SELECT sum(a) AS c, b AS d FROM t1 group by b");
 
     verifyEvents(mockServer, "pysparkDeltaGroupByCompleteEvent.json");
+  }
+
+  @Test
+  @SneakyThrows
+  void testMergeCommandColumnLineage() {
+    spark.sql("DROP TABLE if exists events");
+    spark.sql("CREATE TABLE events (event_id long, last_updated_at long) USING delta");
+    spark.sql("DROP TABLE if exists updates");
+    spark.sql("CREATE TABLE updates (event_id long, updated_at long) USING delta");
+
+    spark.sql("INSERT INTO events VALUES (1, 1641290276);");
+    spark.sql("INSERT INTO updates VALUES (1, 1641290277);");
+    spark.sql("INSERT INTO updates VALUES (2, 1641290277);");
+
+    spark
+        .sql("select event_id, coalesce(updated_at,0) as updated_at from updates")
+        .createOrReplaceTempView("updates2");
+
+    spark.sql(
+        "MERGE INTO events target USING updates2 updates "
+            + " ON target.event_id = updates.event_id"
+            + " WHEN MATCHED THEN UPDATE SET target.last_updated_at = updates.updated_at"
+            + " WHEN NOT MATCHED THEN INSERT (event_id, last_updated_at) "
+            + "VALUES (event_id, updated_at)");
+
+    verifyEvents(
+        mockServer,
+        "deltaMergeCommandVerificationStart.json",
+        "deltaMergeCommandVerificationComplete.json");
   }
 
   /**

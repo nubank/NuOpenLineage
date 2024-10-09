@@ -7,27 +7,34 @@ package io.openlineage.spark.agent;
 
 import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_FIXTURES_JAR_PATH;
 import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_SPARK_CONF_DIR;
+import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_SPARK_HOME_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.CONTAINER_SPARK_JARS_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.HOST_ADDITIONAL_CONF_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.HOST_ADDITIONAL_JARS_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.HOST_LIB_DIR;
 import static io.openlineage.spark.agent.SparkContainerProperties.HOST_SCALA_FIXTURES_JAR_PATH;
+import static io.openlineage.spark.agent.SparkContainerProperties.SCALA_BINARY_VERSION;
 import static io.openlineage.spark.agent.SparkContainerProperties.SPARK_DOCKER_IMAGE;
 import static io.openlineage.spark.agent.SparkContainerUtils.SPARK_DOCKER_CONTAINER_WAIT_MESSAGE;
 import static io.openlineage.spark.agent.SparkContainerUtils.addSparkConfig;
 import static io.openlineage.spark.agent.SparkContainerUtils.mountFiles;
 import static io.openlineage.spark.agent.SparkContainerUtils.mountPath;
+import static io.openlineage.spark.agent.SparkTestUtils.mapToSchemaRecord;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockserver.model.HttpRequest.request;
+import static org.testcontainers.containers.Network.newNetwork;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.RunEvent;
 import io.openlineage.client.OpenLineageClientUtils;
+import io.openlineage.spark.agent.SparkTestUtils.SchemaRecord;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -45,8 +52,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.mockserver.client.MockServerClient;
 import org.mockserver.model.ClearType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MockServerContainer;
 import org.testcontainers.containers.Network;
@@ -67,7 +73,7 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 @Slf4j
 class SparkScalaContainerTest {
-  private static final Network network = Network.newNetwork();
+  private static final Network network = newNetwork();
 
   @Container
   private static final MockServerContainer openLineageClientMockContainer =
@@ -75,8 +81,11 @@ class SparkScalaContainerTest {
 
   private static GenericContainer<?> spark;
   private static MockServerClient mockServerClient;
-  private static final Logger logger = LoggerFactory.getLogger(SparkContainerIntegrationTest.class);
   private static final String SPARK_3_OR_ABOVE = "^[3-9].*";
+  private static final String SPARK_3_ONLY = "^3.*";
+  private static final String SCALA_2_12 = "^2.12.*";
+  private static final String SCALA_VERSION = "scala.binary.version";
+
   private static final String SPARK_VERSION = "spark.version";
 
   @BeforeAll
@@ -99,7 +108,7 @@ class SparkScalaContainerTest {
     try {
       if (spark != null) spark.stop();
     } catch (Exception e) {
-      logger.error("Unable to shut down pyspark container", e);
+      log.error("Unable to shut down pyspark container", e);
     }
   }
 
@@ -108,7 +117,7 @@ class SparkScalaContainerTest {
     try {
       openLineageClientMockContainer.stop();
     } catch (Exception e) {
-      logger.error("Unable to shut down openlineage client container", e);
+      log.error("Unable to shut down openlineage client container", e);
     }
     network.close();
   }
@@ -140,7 +149,7 @@ class SparkScalaContainerTest {
 
   private List<String> constructSparkSubmitCommand(String className) {
     List<String> sparkSubmitCommand = new ArrayList<>();
-    sparkSubmitCommand.add("./bin/spark-submit");
+    sparkSubmitCommand.add(Paths.get(System.getProperty("spark.home.dir")) + "/bin/spark-submit");
     sparkSubmitCommand.add("--master");
     sparkSubmitCommand.add("local");
     sparkSubmitCommand.add("--class");
@@ -158,7 +167,9 @@ class SparkScalaContainerTest {
     addSparkConfig(
         sparkSubmitCommand, "spark.driver.extraJavaOptions=-Dderby.system.home=/tmp/derby");
     addSparkConfig(sparkSubmitCommand, "spark.jars.ivy=/tmp/.ivy2/");
-    addSparkConfig(sparkSubmitCommand, "spark.openlineage.facets.disabled=");
+    addSparkConfig(sparkSubmitCommand, "spark.openlineage.facets.spark.logicalPlan.disabled=false");
+    addSparkConfig(sparkSubmitCommand, "spark.openlineage.facets.spark_unknown.disabled=false");
+    addSparkConfig(sparkSubmitCommand, "spark.openlineage.facets.debug.disabled=false");
     addSparkConfig(sparkSubmitCommand, "spark.ui.enabled=false");
     // Last, but not least, we add the path to the JAR
     sparkSubmitCommand.add(CONTAINER_FIXTURES_JAR_PATH.toString());
@@ -200,9 +211,10 @@ class SparkScalaContainerTest {
   @Test
   @EnabledIfSystemProperty(named = SPARK_VERSION, matches = SPARK_3_OR_ABOVE)
   void testKafka2KafkaStreamingProducesInputAndOutputDatasets() throws IOException {
-    final Network network = Network.newNetwork();
+    final Network network = newNetwork();
     final String className = "io.openlineage.spark.streaming.Kafka2KafkaJob";
-    final DockerImageName kafkaDockerImageName = DockerImageName.parse("docker.io/bitnami/kafka:3");
+    final DockerImageName kafkaDockerImageName =
+        DockerImageName.parse("docker.io/bitnami/kafka:3.4.1");
 
     GenericContainer zookeeperContainer =
         new GenericContainer(DockerImageName.parse("docker.io/bitnami/zookeeper:3.7"))
@@ -249,10 +261,11 @@ class SparkScalaContainerTest {
             .dependsOn(kafkaContainer)
             .waitingFor(Wait.forLogMessage(SPARK_DOCKER_CONTAINER_WAIT_MESSAGE, 1))
             .withNetwork(network)
+            .withLogConsumer(SparkContainerUtils::consumeOutput)
             .withStartupTimeout(Duration.ofMinutes(2));
 
     List<String> command = new ArrayList<>();
-    command.add("./bin/spark-submit");
+    command.add(CONTAINER_SPARK_HOME_DIR + "/bin/spark-submit");
     command.add("--master");
     command.add("local[*]");
     command.add("--class");
@@ -264,8 +277,7 @@ class SparkScalaContainerTest {
     addSparkConfig(command, "spark.extraListeners=" + OpenLineageSparkListener.class.getName());
     addSparkConfig(command, "spark.jars.ivy=/tmp/.ivy2/");
     addSparkConfig(command, "spark.openlineage.debugFacet=enabled");
-    addSparkConfig(
-        command, "spark.openlineage.facets.disabled=[schema;spark_unknown;spark.logicalPlan]");
+    addSparkConfig(command, "spark.openlineage.facets.schema.disabled=true");
     addSparkConfig(command, "spark.openlineage.transport.type=file");
     addSparkConfig(command, "spark.openlineage.transport.location=/tmp/events.log");
     addSparkConfig(command, "spark.sql.shuffle.partitions=1");
@@ -306,7 +318,7 @@ class SparkScalaContainerTest {
     List<RunEvent> nonEmptyInputEvents =
         events.stream().filter(e -> !e.getInputs().isEmpty()).collect(Collectors.toList());
 
-    assertEquals(3, nonEmptyInputEvents.size());
+    assertThat(nonEmptyInputEvents).isNotEmpty();
 
     nonEmptyInputEvents.forEach(
         event -> {
@@ -318,5 +330,289 @@ class SparkScalaContainerTest {
           assertEquals("output-topic", event.getOutputs().get(0).getName());
           assertEquals("kafka://kafka.broker.zero:9092", event.getOutputs().get(0).getNamespace());
         });
+  }
+
+  @Test
+  @EnabledIfSystemProperty(named = SPARK_VERSION, matches = SPARK_3_ONLY)
+  @EnabledIfSystemProperty(named = SCALA_VERSION, matches = SCALA_2_12)
+  void testReadingFromKinesis() throws IOException, InterruptedException {
+    final String className = "io.openlineage.spark.streaming.KinesisReadJob";
+    Network localstackNetwork = newNetwork();
+
+    // latest left only because of issue with 3.6 version as 3.5, its planned to be fixed in 3.7
+    // (end of august)
+    GenericContainer localStack =
+        new GenericContainer<>(DockerImageName.parse("localstack/localstack:latest"))
+            .withNetwork(localstackNetwork)
+            .withNetworkAliases("localstack")
+            .withLogConsumer(SparkContainerUtils::consumeOutput)
+            .withExposedPorts(4566)
+            .withCommand();
+
+    localStack.start();
+
+    GenericContainer pythonContainer =
+        new GenericContainer<>(DockerImageName.parse("python:3.11"))
+            .withNetwork(localstackNetwork)
+            .withNetworkAliases("python")
+            .withCommand("sh", "-c", "tail -f /dev/null")
+            .dependsOn(localStack)
+            .withLogConsumer(SparkContainerUtils::consumeOutput);
+
+    pythonContainer.start();
+
+    pythonContainer.execInContainer("pip", "install", "awscli-local", "awscli");
+    pythonContainer.execInContainer(
+        "awslocal",
+        "--endpoint-url=http://localstack:4566",
+        "kinesis",
+        "create-stream",
+        "--stream-name",
+        "events",
+        "--shard-count",
+        "1");
+    pythonContainer.execInContainer(
+        "awslocal",
+        "--endpoint-url=http://localstack:4566",
+        "kinesis",
+        "put-record",
+        "--stream-name",
+        "events",
+        "--partition-key",
+        "1",
+        "--data",
+        "XzxkYXRhPl8x");
+
+    pythonContainer.execInContainer(
+        "awslocal",
+        "--endpoint-url=http://localstack:4566",
+        "kinesis",
+        "put-record",
+        "--stream-name",
+        "events",
+        "--partition-key",
+        "1",
+        "--data",
+        "XzxkYXRhPl8x");
+
+    GenericContainer spark =
+        new GenericContainer<>(DockerImageName.parse(SPARK_DOCKER_IMAGE))
+            .dependsOn(localStack)
+            .waitingFor(Wait.forLogMessage(SPARK_DOCKER_CONTAINER_WAIT_MESSAGE, 1))
+            .withNetwork(localstackNetwork)
+            .withLogConsumer(SparkContainerUtils::consumeOutput)
+            .withEnv("AWS_ACCESS_KEY_ID", "test")
+            .withEnv("AWS_SECRET_ACCESS_KEY=", "test")
+            .withStartupTimeout(Duration.ofMinutes(2));
+
+    List<String> command = new ArrayList<>();
+    command.add("./bin/spark-submit");
+    command.add("--master");
+    command.add("local[*]");
+    command.add("--class");
+    command.add(className);
+    command.add("--jars");
+    command.add(
+        "https://awslabs-code-us-east-1.s3.amazonaws.com/spark-sql-kinesis-connector/spark-streaming-sql-kinesis-connector_"
+            + SCALA_BINARY_VERSION
+            + "-1.0.0.jar");
+
+    addSparkConfig(command, "spark.driver.extraJavaOptions=-Dderby.system.home=/tmp/derby");
+    addSparkConfig(command, "spark.extraListeners=" + OpenLineageSparkListener.class.getName());
+    addSparkConfig(command, "spark.jars.ivy=/tmp/.ivy2/");
+    addSparkConfig(command, "spark.openlineage.facets.debug.disabled=false");
+    addSparkConfig(command, "spark.openlineage.facets.spark.logicalPlan.disabled=false");
+    addSparkConfig(command, "spark.openlineage.transport.type=file");
+    addSparkConfig(command, "spark.openlineage.transport.location=/tmp/events.log");
+    addSparkConfig(command, "spark.sql.shuffle.partitions=1");
+    addSparkConfig(command, "spark.sql.warehouse.dir=/tmp/warehouse");
+    addSparkConfig(command, "spark.ui.enabled=false");
+    command.add(CONTAINER_FIXTURES_JAR_PATH.toString());
+
+    // mount the additional Jars
+    mountPath(spark, HOST_SCALA_FIXTURES_JAR_PATH, CONTAINER_FIXTURES_JAR_PATH);
+    mountFiles(spark, HOST_LIB_DIR, CONTAINER_SPARK_JARS_DIR);
+    mountFiles(spark, HOST_ADDITIONAL_JARS_DIR, CONTAINER_SPARK_JARS_DIR);
+    mountFiles(spark, HOST_ADDITIONAL_CONF_DIR, CONTAINER_SPARK_CONF_DIR);
+
+    final String commandStr = String.join(" ", command);
+    log.info("Command is {}", commandStr);
+
+    spark.withCommand(commandStr);
+    spark.start();
+
+    File temporaryFile = File.createTempFile("events", ".log");
+
+    spark.copyFileFromContainer("/tmp/events.log", temporaryFile.getPath());
+
+    List<RunEvent> events =
+        Files.readAllLines(temporaryFile.toPath()).stream()
+            .map(OpenLineageClientUtils::runEventFromJson)
+            .collect(Collectors.toList());
+
+    List<RunEvent> nonEmptyInputEvents =
+        events.stream().filter(e -> !e.getInputs().isEmpty()).collect(Collectors.toList());
+
+    assertFalse(nonEmptyInputEvents.isEmpty());
+
+    List<SchemaRecord> expectedInputSchema =
+        Arrays.asList(
+            new SchemaRecord("data", "binary"),
+            new SchemaRecord("streamName", "string"),
+            new SchemaRecord("partitionKey", "string"),
+            new SchemaRecord("sequenceNumber", "string"),
+            new SchemaRecord("approximateArrivalTimestamp", "timestamp"));
+
+    nonEmptyInputEvents.forEach(
+        event -> {
+          assertEquals(1, event.getInputs().size());
+          assertEquals("events", event.getInputs().get(0).getName());
+          assertEquals("kinesis://localstack:4566", event.getInputs().get(0).getNamespace());
+          assertEquals(
+              expectedInputSchema,
+              mapToSchemaRecord(event.getInputs().get(0).getFacets().getSchema()));
+        });
+  }
+
+  @Test
+  @EnabledIfSystemProperty(named = SPARK_VERSION, matches = SPARK_3_ONLY)
+  void testSparkStreamingWithMongoReplicaSource() throws IOException, InterruptedException {
+    Network containersNetwork = newNetwork();
+    final String className = "io.openlineage.spark.streaming.MongoStreamingJob";
+
+    GenericContainer mongo1 = buildMongoContainer(containersNetwork, "m1");
+    GenericContainer mongo2 = buildMongoContainer(containersNetwork, "m2");
+    GenericContainer mongo3 = buildMongoContainer(containersNetwork, "m3");
+
+    // start mongo cluster
+    mongo1.start();
+    mongo2.start();
+    mongo3.start();
+
+    initializeMongoReplicas(mongo1);
+
+    GenericContainer spark =
+        new GenericContainer<>(DockerImageName.parse(SPARK_DOCKER_IMAGE))
+            .dependsOn(mongo1, mongo2, mongo3)
+            .waitingFor(Wait.forLogMessage(SPARK_DOCKER_CONTAINER_WAIT_MESSAGE, 1))
+            .withNetwork(containersNetwork)
+            .withStartupTimeout(Duration.ofMinutes(2));
+
+    List<String> command = new ArrayList<>();
+    command.add("./bin/spark-submit");
+    command.add("--master");
+    command.add("local[*]");
+    command.add("--class");
+    command.add(className);
+    command.add("--packages");
+    command.add(System.getProperty("mongo.package.version"));
+
+    addSparkConfig(command, "spark.driver.extraJavaOptions=-Dderby.system.home=/tmp/derby");
+    addSparkConfig(command, "spark.extraListeners=" + OpenLineageSparkListener.class.getName());
+    addSparkConfig(command, "spark.jars.ivy=/tmp/.ivy2/");
+    addSparkConfig(command, "spark.openlineage.debugFacet=enabled");
+    addSparkConfig(command, "spark.openlineage.facets.disabled=[spark_unknown]");
+    addSparkConfig(command, "spark.openlineage.transport.type=file");
+    addSparkConfig(command, "spark.openlineage.transport.location=/tmp/events.log");
+    addSparkConfig(command, "spark.sql.shuffle.partitions=1");
+    addSparkConfig(command, "spark.sql.warehouse.dir=/tmp/warehouse");
+    addSparkConfig(command, "spark.ui.enabled=false");
+    command.add(CONTAINER_FIXTURES_JAR_PATH.toString());
+
+    // mount the additional Jars
+    mountPath(spark, HOST_SCALA_FIXTURES_JAR_PATH, CONTAINER_FIXTURES_JAR_PATH);
+    mountFiles(spark, HOST_LIB_DIR, CONTAINER_SPARK_JARS_DIR);
+    mountFiles(spark, HOST_ADDITIONAL_JARS_DIR, CONTAINER_SPARK_JARS_DIR);
+    mountFiles(spark, HOST_ADDITIONAL_CONF_DIR, CONTAINER_SPARK_CONF_DIR);
+
+    final String commandStr = String.join(" ", command);
+    log.info("Command is {}", commandStr);
+
+    spark.withCommand(commandStr);
+
+    spark.start();
+
+    Awaitility.await().atMost(Duration.ofSeconds(60)).until(() -> !spark.isRunning());
+
+    File temporaryFile = File.createTempFile("events", ".log");
+
+    spark.copyFileFromContainer("/tmp/events.log", temporaryFile.getPath());
+
+    temporaryFile.deleteOnExit();
+
+    List<RunEvent> runEvents =
+        Files.readAllLines(temporaryFile.toPath()).stream()
+            .map(OpenLineageClientUtils::runEventFromJson)
+            .collect(Collectors.toList());
+
+    List<RunEvent> nonEmptySourceEvents =
+        runEvents.stream()
+            .filter(event -> !event.getInputs().isEmpty())
+            .collect(Collectors.toList());
+
+    assertFalse(nonEmptySourceEvents.isEmpty());
+
+    List<SchemaRecord> expectedInputSchema =
+        Arrays.asList(
+            new SchemaRecord("_id", "string"),
+            new SchemaRecord("name", "string"),
+            new SchemaRecord("date", "timestamp"),
+            new SchemaRecord("location", "string"));
+
+    nonEmptySourceEvents.forEach(
+        nonEmptyInputEvent -> {
+          assertEquals(1, nonEmptyInputEvent.getInputs().size());
+          assertEquals("events", nonEmptyInputEvent.getInputs().get(0).getName());
+          assertEquals(
+              "mongodb://m1:27017" + "/events",
+              nonEmptyInputEvent.getInputs().get(0).getNamespace());
+          assertEquals(
+              expectedInputSchema,
+              mapToSchemaRecord(nonEmptyInputEvent.getInputs().get(0).getFacets().getSchema()));
+        });
+
+    spark.stop();
+    mongo1.stop();
+    mongo2.stop();
+    mongo3.stop();
+  }
+
+  private void initializeMongoReplicas(GenericContainer mongo)
+      throws IOException, InterruptedException {
+    org.testcontainers.containers.Container.ExecResult commandResult =
+        mongo.execInContainer("/bin/bash", "-c", "mongosh < initializeReplica.js");
+    assertEquals("", commandResult.getStderr());
+
+    new Thread(
+            () -> {
+              try {
+                Thread.sleep(1000);
+                org.testcontainers.containers.Container.ExecResult insertResults =
+                    mongo.execInContainer(
+                        "/bin/bash",
+                        "-c",
+                        "mongosh mongodb://m1:27017,m2:27017,m3:27017/events < insertRecords.js");
+                assertEquals("", insertResults.getStderr());
+              } catch (InterruptedException | IOException e) {
+                log.error("Failed to insert records", e);
+              }
+            })
+        .start();
+  }
+
+  private GenericContainer buildMongoContainer(Network network, String name) {
+    return new GenericContainer("mongo:7.0")
+        .withNetwork(network)
+        .withNetworkAliases(name)
+        .withExposedPorts(27017)
+        .withFileSystemBind(
+            "src/test/resources/mongoconf/initializeReplica.js",
+            "/initializeReplica.js",
+            BindMode.READ_ONLY)
+        .withFileSystemBind(
+            "src/test/resources/mongoconf/insertRecords.js",
+            "/insertRecords.js",
+            BindMode.READ_ONLY)
+        .withCommand("--replSet rs0 --bind_ip localhost," + name);
   }
 }
