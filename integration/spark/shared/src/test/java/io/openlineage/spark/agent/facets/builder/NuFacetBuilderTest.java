@@ -6,7 +6,9 @@
 package io.openlineage.spark.agent.facets.builder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
+import io.openlineage.spark.agent.facets.NuFacet;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.client.OpenLineage.RunFacet;
 import io.openlineage.spark.agent.facets.SparkJobDetailsFacet;
@@ -22,17 +24,18 @@ class NuFacetBuilderTest {
 
   @Test
   void testBuild() {
-    openLineageContext.setJobNurn("nurn:blablabla")
+    openLineageContext.setJobNurn("nurn:blablabla");
     NuFacetBuilder builder = new NuFacetBuilder(openLineageContext);
     Map<String, RunFacet> runFacetMap = new HashMap<>();
     builder.build(
-        new SparkListenerJobStart(1, 1l, ScalaConversionUtils.asScalaSeqEmpty(), Properties properties = new Properties()),
-        runFacetMap::put);
+            new SparkListenerJobStart(1, 1L, ScalaConversionUtils.asScalaSeqEmpty(), new Properties()),
+            runFacetMap::put);
     assertThat(runFacetMap)
-        .hasEntrySatisfying(
-            "nu_facets",
-            facet ->
-                assertThat(facet)
-                    .isInstanceOf(NuFacet.class)
-                    .hasFieldOrPropertyWithValue("jobNurn", "nurn:blablabla"));
+            .hasEntrySatisfying(
+                    "nu_facets",
+                    facet ->
+                            assertThat(facet)
+                                    .isInstanceOf(NuFacet.class)
+                                    .hasFieldOrPropertyWithValue("jobNurn", "nurn:blablabla"));
   }
+}
