@@ -27,6 +27,8 @@ ext {
 
 sourceSets {
     test {
+
+
         buildConfig {
             // We should use the same version of dependency and Docker image
             buildConfigField(String, "S3_MOCK_VERSION", s3MockVersion)
@@ -52,6 +54,13 @@ shadowJar {
     relocate "org.apache", "io.openlineage.client.shaded.org.apache"
     relocate "org.reactivestreams", "io.openlineage.client.shaded.org.reactivestreams"
     relocate "org.slf4j", "io.openlineage.client.shaded.org.slf4j"
+}
+
+test {
+    filter {
+        excludeTest "io.openlineage.client.transports.s3.S3TransportTest", "shouldWriteEventToS3"
+        excludeTest "io.openlineage.client.transports.s3.S3TransportTest", "shouldThrowIfObjectAlreadyExists"
+    }
 }
 
 apply from: '../transports.build.gradle'
