@@ -57,9 +57,7 @@ shadowJar {
 }
 
 test {
-    filter {
-        excludeTestsMatching "io.openlineage.client.transports.s3*"
-    }
+    exclude 'io/openlineage/client/transports/s3/S3TransportTest.class'
 }
 
 apply from: '../transports.build.gradle'
