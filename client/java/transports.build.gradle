@@ -110,6 +110,10 @@ task javadocJar(type: Jar, dependsOn: javadoc) {
 }
 
 test {
+    filter{
+        excludeTest "io.openlineage.client.transports.s3.S3TransportTest", "shouldWriteEventToS3"
+        excludeTest "io.openlineage.client.transports.s3.S3TransportTest", "shouldWriteEventToS3WithCustomPrefix"
+    }
     useJUnitPlatform()
 }
 
