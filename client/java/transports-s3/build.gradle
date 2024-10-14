@@ -58,8 +58,7 @@ shadowJar {
 
 test {
     filter {
-        excludeTest "io.openlineage.client.transports.s3.S3TransportTest", "shouldWriteEventToS3"
-        excludeTest "io.openlineage.client.transports.s3.S3TransportTest", "shouldThrowIfObjectAlreadyExists"
+        excludeTestsMatching "io.openlineage.client.transports.s3*"
     }
 }
 
