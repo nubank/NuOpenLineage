@@ -52,12 +52,12 @@ public class DatabricksUtils {
   public static final Map<String, String> PLATFORM_VERSIONS_NAMES =
       Stream.of(
               new AbstractMap.SimpleEntry<>("3.4.2", "13.3.x-scala2.12"),
-              new AbstractMap.SimpleEntry<>("3.5.0", "14.2.x-scala2.12"))
+              new AbstractMap.SimpleEntry<>("3.5.2", "14.2.x-scala2.12"))
           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   public static final Map<String, String> PLATFORM_VERSIONS =
       Stream.of(
               new AbstractMap.SimpleEntry<>("3.4.2", "13.3"),
-              new AbstractMap.SimpleEntry<>("3.5.0", "14.2"))
+              new AbstractMap.SimpleEntry<>("3.5.2", "14.2"))
           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   public static final String NODE_TYPE = "Standard_DS3_v2";
   public static final String INIT_SCRIPT_FILE = "/Shared/open-lineage-init-script.sh";
@@ -174,7 +174,7 @@ public class DatabricksUtils {
   @SneakyThrows
   private static String createCluster(WorkspaceClient workspace) {
     HashMap<String, String> sparkConf = new HashMap<String, String>();
-    sparkConf.put("spark.openlineage.debugFacet", "enabled");
+    sparkConf.put("spark.openlineage.facets.debug.disabled", "false");
     sparkConf.put("spark.openlineage.transport.type", "file");
     sparkConf.put("spark.openlineage.transport.location", "/tmp/events.log");
     sparkConf.put("spark.extraListeners", "io.openlineage.spark.agent.OpenLineageSparkListener");
@@ -193,6 +193,7 @@ public class DatabricksUtils {
             .build();
 
     log.info("Creating cluster");
+    workspace.config().setHttpTimeoutSeconds(600); // 10 minutes, otherwise it's rather setup issue
     CreateClusterResponse response =
         workspace
             .apiClient()
@@ -221,7 +222,7 @@ public class DatabricksUtils {
     Path jarFile =
         Files.list(Paths.get("../build/libs/"))
             .filter(p -> p.getFileName().toString().startsWith("openlineage-spark_"))
-            .filter(p -> p.getFileName().toString().endsWith("jar"))
+            .filter(p -> p.getFileName().toString().endsWith("-SNAPSHOT.jar"))
             .findAny()
             .orElseThrow(() -> new RuntimeException("openlineage-spark jar not found"));
 

@@ -8,6 +8,8 @@ package io.openlineage.gradle.plugin
 import com.diffplug.gradle.spotless.SpotlessExtension
 import com.diffplug.gradle.spotless.SpotlessPlugin
 import com.diffplug.spotless.FormatterFunc
+import com.adarshr.gradle.testlogger.TestLoggerPlugin
+import com.adarshr.gradle.testlogger.TestLoggerExtension
 import io.freefair.gradle.plugins.lombok.LombokExtension
 import io.freefair.gradle.plugins.lombok.LombokPlugin
 import org.gradle.api.JavaVersion
@@ -49,6 +51,7 @@ class CommonConfigPlugin : Plugin<Project> {
         configureLombok(target)
         configureSpotless(target)
         configurePrintSourceSetTask(target)
+        configureTestLogger(target)
     }
 
     private fun getPluginExtension(target: Project): CommonConfigPluginExtension =
@@ -83,6 +86,10 @@ class CommonConfigPlugin : Plugin<Project> {
                 if (System.getenv().containsKey("CI") && !target.hasProperty("java.compile.home")) {
                     // never run compile on CI without property being set
                     throw RuntimeException("java.compile.home should be always set on CI env")
+                }
+
+                if (!target.hasProperty("java.compile.home") && JavaVersion.current() < JavaVersion.VERSION_17) {
+                    throw RuntimeException("This project will not compile with Java version below 17.")
                 }
             }
         }
@@ -138,6 +145,14 @@ class CommonConfigPlugin : Plugin<Project> {
         val commonConfigExtension = getPluginExtension(target)
         with(target.extensions.getByType<LombokExtension>()) {
             version.set(commonConfigExtension.lombokVersion)
+        }
+    }
+
+    private fun configureTestLogger(target: Project) = target.plugins.withType<TestLoggerPlugin> {
+        target.extensions.configure<TestLoggerExtension> {
+            showExceptions = false
+            showStackTraces = false
+            showStandardStreams = true
         }
     }
 
