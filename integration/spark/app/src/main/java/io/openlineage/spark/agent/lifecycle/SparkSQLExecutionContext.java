@@ -10,6 +10,7 @@ import static io.openlineage.client.OpenLineage.RunEvent.EventType.FAIL;
 import static io.openlineage.client.OpenLineage.RunEvent.EventType.RUNNING;
 import static io.openlineage.client.OpenLineage.RunEvent.EventType.START;
 import static io.openlineage.spark.agent.util.TimeUtils.toZonedTime;
+import static java.util.Objects.isNull;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.RunEvent;
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.*;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
@@ -67,6 +70,28 @@ class SparkSQLExecutionContext implements ExecutionContext {
     this.runEventBuilder = runEventBuilder;
   }
 
+  private static Boolean shouldEmit(RunEvent event){
+    if (RUNNING.equals(event.getEventType())) {
+      log.info("OpenLineage event is not emitted because the job is still running");
+      return false;
+    }
+
+    String jobName = event.getJob().getName();
+    if (isNull(jobName)) {
+      log.info("OpenLineage event has no job name and will not be emmited");
+      return false;
+    }
+
+    if (Stream.of(".execute_insert_into_hadoop_fs_relation_command.",
+                    ".adaptive_spark_plan.")
+            .noneMatch(jobName::contains)) {
+      log.info("OpenLineage event has no lineage value and will not be emmited");
+      return false;
+    }
+
+    return true;
+  }
+
   @Override
   public void start(SparkListenerSQLExecutionStart startEvent) {
     if (log.isDebugEnabled()) {
@@ -100,13 +125,12 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-      if (RUNNING.equals(event.getEventType())) {
-        log.info("OpenLineage event is not emitted because the job is still running");
-        return;
-      }
+    if (!shouldEmit(event)) {
+      return;
+    }
 
-     log.debug("Posting event for start {}: {}", executionId, event);
-     eventEmitter.emit(event);
+    log.debug("Posting event for start {}: {}", executionId, event);
+    eventEmitter.emit(event);
   }
 
   @Override
@@ -151,15 +175,13 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (RUNNING.equals(event.getEventType())) {
-        log.info("OpenLineage event is not emitted because the job is still running");
-        return;
+    if (!shouldEmit(event)) {
+      return;
     }
 
     if (log.isDebugEnabled()) {
       log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
-
     eventEmitter.emit(event);
   }
 
@@ -174,6 +196,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageSubmitted");
       return;
     }
+
     RunEvent event =
         runEventBuilder.buildRun(
             OpenLineageRunEventContext.builder()
@@ -189,9 +212,11 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    log.info("OpenLineage event is not emitted because the job is still running");
-//    log.debug("Posting event for stage submitted {}: {}", executionId, event);
-//    eventEmitter.emit(event);
+    if (!shouldEmit(event)) {
+      return;
+    }
+
+    eventEmitter.emit(event);
   }
 
   // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
@@ -205,6 +230,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageCompleted");
       return;
     }
+
     RunEvent event =
         runEventBuilder.buildRun(
             OpenLineageRunEventContext.builder()
@@ -220,9 +246,12 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    log.info("OpenLineage event is not emitted because the job is still running");
-//    log.debug("Posting event for stage completed {}: {}", executionId, event);
-//    eventEmitter.emit(event);
+    if (!shouldEmit(event)) {
+      return;
+    }
+
+    log.debug("Posting event for stage completed {}: {}", executionId, event);
+    eventEmitter.emit(event);
   }
 
   @Override
@@ -274,8 +303,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (RUNNING.equals(event.getEventType())) {
-      log.info("OpenLineage event is not emitted because the job is still running");
+    if (!shouldEmit(event)) {
       return;
     }
 
@@ -328,8 +356,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (RUNNING.equals(event.getEventType())) {
-      log.info("OpenLineage event is not emitted because the job is still running");
+    if (!shouldEmit(event)) {
       return;
     }
 
