@@ -43,7 +43,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
   private static final String SPARK_PROCESSING_TYPE_BATCH = "BATCH";
   private static final String SPARK_PROCESSING_TYPE_STREAMING = "STREAMING";
   private final long executionId;
-  private String jobName;
   private final OpenLineageContext olContext;
   private final EventEmitter eventEmitter;
   private final OpenLineageRunEventBuilder runEventBuilder;
@@ -81,9 +80,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerSQLExecutionStart");
       // return;
     }
-//    olContext.setJobNurn(olContext.getSparkSession().get().conf().get("spark.job.name"));
     olContext.setActiveJobId(activeJobId);
-    // We shall skip this START event, focusing on the first SparkListenerJobStart event to be the START, because of the presence of the job nurn
     // only one START event is expected, in case it was already sent with jobStart, we send running
      EventType eventType = emittedOnJobStart ? RUNNING : START;
      emittedOnSqlExecutionStart = true;
@@ -129,7 +126,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerSQLExecutionEnd");
       // return;
     }
-//    olContext.setJobNurn(olContext.getSparkSession().get().conf().get("spark.job.name"));
     // only one COMPLETE event is expected, verify if jobEnd was not emitted
     EventType eventType;
     if (emittedOnJobStart && !emittedOnJobEnd) {
@@ -178,7 +174,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageSubmitted");
       return;
     }
-//    olContext.setJobNurn(olContext.getSparkSession().get().conf().get("spark.job.name"));
     RunEvent event =
         runEventBuilder.buildRun(
             OpenLineageRunEventContext.builder()
@@ -210,7 +205,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageCompleted");
       return;
     }
-//    olContext.setJobNurn(olContext.getSparkSession().get().conf().get("spark.job.name"));
     RunEvent event =
         runEventBuilder.buildRun(
             OpenLineageRunEventContext.builder()
@@ -251,13 +245,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
   @Override
   public void start(SparkListenerJobStart jobStart) {
     log.debug("SparkListenerJobStart - executionId: {}", executionId);
-//    try {
-//      jobName = jobStart.properties().getProperty("spark.job.name");
-//    } catch (RuntimeException e) {
-//      log.info("spark.job.name property not found in the context");
-//    }
-
-//    olContext.setJobNurn(olContext.getSparkSession().get().conf().get("spark.job.name"));
     if (!olContext.getQueryExecution().isPresent()) {
       log.info(NO_EXECUTION_INFO, olContext);
       return;
@@ -270,7 +257,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
     // only one START event is expected, in case it was already sent with sqlExecutionStart, we send
     // running
     EventType eventType = emittedOnSqlExecutionStart ? RUNNING : START;
-//    emittedOnSqlExecutionStart = true;
     emittedOnJobStart = true;
 
     RunEvent event =
@@ -314,8 +300,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerJobEnd");
       // return;
     }
-
-//    olContext.setJobNurn(olContext.getSparkSession().get().conf().get("spark.job.name"));
 
     // only one COMPLETE event is expected,
     EventType eventType;

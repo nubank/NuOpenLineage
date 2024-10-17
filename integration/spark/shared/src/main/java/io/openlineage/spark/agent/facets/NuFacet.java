@@ -49,6 +49,5 @@ public class NuFacet extends OpenLineage.DefaultRunFacet {
   public NuFacet(@NonNull OpenLineageContext olContext) {
     super(Versions.OPEN_LINEAGE_PRODUCER_URI);
     this.jobNurn = fetchJobNurn(olContext);
-//    this.jobNurn = olContext.getJobNurn();
   }
 }
