@@ -94,8 +94,11 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                 .event(applicationStart)
                 .build());
 
-    log.debug("Posting event for applicationId {} start: {}", applicationId, event);
-    eventEmitter.emit(event);
+
+    log.info("OpenLineage APPLICATION event has no lineage value an will not be emmited");
+
+//    log.debug("Posting event for applicationId {} start: {}", applicationId, event);
+//    eventEmitter.emit(event);
   }
 
   @Override
@@ -125,8 +128,10 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                 .event(applicationEnd)
                 .build());
 
-    log.debug("Posting event for applicationId {} end: {}", applicationId, event);
-    eventEmitter.emit(event);
+    log.info("OpenLineage APPLICATION event has no lineage value an will not be emmited");
+
+//    log.debug("Posting event for applicationId {} end: {}", applicationId, event);
+//    eventEmitter.emit(event);
   }
 
   private OpenLineage.ParentRunFacet buildApplicationParentFacet() {
