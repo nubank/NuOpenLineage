@@ -57,11 +57,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
 
   private SparkSQLQueryParser sqlRecorder = new SparkSQLQueryParser();
 
-//  private static final Set<String> NU_WANTED_EVENT_NAME_SUBSTRINGS = Set.of(
-//          ".execute_insert_into_hadoop_fs_relation_command.",
-//          ".adaptive_spark_plan."
-//  );
-
   public SparkSQLExecutionContext(
       long executionId,
       EventEmitter eventEmitter,
