@@ -22,10 +22,14 @@ import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.naming.JobNameBuilder;
+
+import java.lang.reflect.Field;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.*;
@@ -92,6 +96,34 @@ class SparkSQLExecutionContext implements ExecutionContext {
     return true;
   }
 
+  private static Boolean shouldKeepColumnLineageFacet(EventType eventType) {
+    return !(START.equals(eventType) || RUNNING.equals(eventType));
+  }
+
+  private static void discardColumnLineage(RunEvent event) {
+    if (shouldKeepColumnLineageFacet(event.getEventType())) { return; }
+
+    log.info("Discarding column lineage facet for event {}", event.getEventType());
+
+    try {
+      Field columnLineageFacetField = OpenLineage.DatasetFacets.class.getDeclaredField("columnLineage");
+      columnLineageFacetField.setAccessible(true);
+      Stream
+        .concat(event.getInputs().stream(), event.getOutputs().stream())
+        .collect(Collectors.toList())
+        .forEach(dataset -> {
+          try {
+            log.info("Discarding column lineage facet for dataset {} {} {}", dataset.getClass().getName(), dataset.getNamespace(), dataset.getName());
+              columnLineageFacetField.set(dataset.getFacets(), null);
+          } catch (IllegalAccessException e) {
+            log.warn("Failed to discard column lineage facet", e);
+          }
+      });
+    } catch (NoSuchFieldException e) {
+        log.error("Failed to discard column lineage facet: columnLineage field not found at OpenLineage.DatasetFacets", e);
+    }
+  }
+
   @Override
   public void start(SparkListenerSQLExecutionStart startEvent) {
     if (log.isDebugEnabled()) {
@@ -128,6 +160,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (!shouldEmit(event)) {
       return;
     }
+
+    discardColumnLineage(event);
 
     log.debug("Posting event for start {}: {}", executionId, event);
     eventEmitter.emit(event);
@@ -180,6 +214,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
       return;
     }
 
+    discardColumnLineage(event);
+
     if (log.isDebugEnabled()) {
       log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
@@ -217,6 +253,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
       return;
     }
 
+    discardColumnLineage(event);
+
     log.debug("Posting event for stage submitted {}: {}", executionId, event);
     eventEmitter.emit(event);
   }
@@ -250,6 +288,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (!shouldEmit(event)) {
       return;
     }
+
+    discardColumnLineage(event);
 
     log.debug("Posting event for stage completed {}: {}", executionId, event);
     eventEmitter.emit(event);
@@ -308,6 +348,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
       return;
     }
 
+    discardColumnLineage(event);
+
     log.debug("Posting event for start {}: {}", executionId, event);
     eventEmitter.emit(event);
   }
@@ -360,6 +402,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (!shouldEmit(event)) {
       return;
     }
+
+    discardColumnLineage(event);
 
     log.debug("Posting event for end {}: {}", executionId, event);
     eventEmitter.emit(event);
