@@ -224,8 +224,11 @@ class RddExecutionContext implements ExecutionContext {
                     .build())
             .job(buildJob(jobStart.jobId()))
             .build();
-    log.debug("Posting event for start {}: {}", jobStart, event);
-    eventEmitter.emit(event);
+
+    log.info("OpenLineage {} event has no lineage value an will not be emmited", SPARK_JOB_TYPE);
+
+//    log.debug("Posting event for start {}: {}", jobStart, event);
+//    eventEmitter.emit(event);
   }
 
   @Override
@@ -257,8 +260,11 @@ class RddExecutionContext implements ExecutionContext {
                     .build())
             .job(buildJob(jobEnd.jobId()))
             .build();
-    log.debug("Posting event for end {}: {}", jobEnd, event);
-    eventEmitter.emit(event);
+
+    log.info("OpenLineage {} event has no lineage value an will not be emmited", SPARK_JOB_TYPE);
+
+//    log.debug("Posting event for end {}: {}", jobEnd, event);
+//    eventEmitter.emit(event);
   }
 
   protected OpenLineage.RunFacets buildRunFacets(ErrorFacet jobError, SparkListenerEvent event) {
