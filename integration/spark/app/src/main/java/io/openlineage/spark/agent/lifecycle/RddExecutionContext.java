@@ -11,6 +11,7 @@ import io.openlineage.client.OpenLineage;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.client.utils.UUIDUtils;
 import io.openlineage.spark.agent.EventEmitter;
+import io.openlineage.spark.agent.NuEventEmitter;
 import io.openlineage.spark.agent.OpenLineageSparkListener;
 import io.openlineage.spark.agent.facets.ErrorFacet;
 import io.openlineage.spark.agent.facets.builder.GcpJobFacetBuilder;
@@ -225,10 +226,8 @@ class RddExecutionContext implements ExecutionContext {
             .job(buildJob(jobStart.jobId()))
             .build();
 
-    log.info("OpenLineage {} event has no lineage value an will not be emmited", SPARK_JOB_TYPE);
-
-//    log.debug("Posting event for start {}: {}", jobStart, event);
-//    eventEmitter.emit(event);
+    log.debug("Posting event for start {}: {}", jobStart, event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -261,10 +260,8 @@ class RddExecutionContext implements ExecutionContext {
             .job(buildJob(jobEnd.jobId()))
             .build();
 
-    log.info("OpenLineage {} event has no lineage value an will not be emmited", SPARK_JOB_TYPE);
-
-//    log.debug("Posting event for end {}: {}", jobEnd, event);
-//    eventEmitter.emit(event);
+    log.debug("Posting event for end {}: {}", jobEnd, event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   protected OpenLineage.RunFacets buildRunFacets(ErrorFacet jobError, SparkListenerEvent event) {

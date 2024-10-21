@@ -10,26 +10,23 @@ import static io.openlineage.client.OpenLineage.RunEvent.EventType.FAIL;
 import static io.openlineage.client.OpenLineage.RunEvent.EventType.RUNNING;
 import static io.openlineage.client.OpenLineage.RunEvent.EventType.START;
 import static io.openlineage.spark.agent.util.TimeUtils.toZonedTime;
-import static java.util.Objects.isNull;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.RunEvent;
 import io.openlineage.client.OpenLineage.RunEvent.EventType;
 import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.spark.agent.EventEmitter;
+import io.openlineage.spark.agent.NuEventEmitter;
 import io.openlineage.spark.agent.filters.EventFilterUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.naming.JobNameBuilder;
 
-import java.lang.reflect.Field;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.*;
@@ -60,10 +57,10 @@ class SparkSQLExecutionContext implements ExecutionContext {
 
   private SparkSQLQueryParser sqlRecorder = new SparkSQLQueryParser();
 
-  private static final Set<String> NU_WANTED_EVENT_NAME_SUBSTRINGS = Set.of(
-          ".execute_insert_into_hadoop_fs_relation_command.",
-          ".adaptive_spark_plan."
-  );
+//  private static final Set<String> NU_WANTED_EVENT_NAME_SUBSTRINGS = Set.of(
+//          ".execute_insert_into_hadoop_fs_relation_command.",
+//          ".adaptive_spark_plan."
+//  );
 
   public SparkSQLExecutionContext(
       long executionId,
@@ -74,54 +71,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
     this.eventEmitter = eventEmitter;
     this.olContext = olContext;
     this.runEventBuilder = runEventBuilder;
-  }
-
-  private static Boolean shouldEmit(RunEvent event){
-    if (RUNNING.equals(event.getEventType())) {
-      log.info("OpenLineage event is RUNNING and should not be emmited");
-      return false;
-    }
-
-    String jobName = event.getJob().getName();
-    if (isNull(jobName)) {
-      log.info("OpenLineage event has no job name should not be emitted");
-      return false;
-    }
-
-    if (NU_WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(jobName::contains)) {
-      log.info("OpenLineage event has no lineage value and will not be emmited");
-      return false;
-    }
-
-    return true;
-  }
-
-  private static Boolean shouldKeepColumnLineageFacet(EventType eventType) {
-    return !(START.equals(eventType) || RUNNING.equals(eventType));
-  }
-
-  private static void discardColumnLineage(RunEvent event) {
-    if (shouldKeepColumnLineageFacet(event.getEventType())) { return; }
-
-    log.info("Discarding column lineage facet for event {}", event.getEventType());
-
-    try {
-      Field columnLineageFacetField = OpenLineage.DatasetFacets.class.getDeclaredField("columnLineage");
-      columnLineageFacetField.setAccessible(true);
-      Stream
-        .concat(event.getInputs().stream(), event.getOutputs().stream())
-        .collect(Collectors.toList())
-        .forEach(dataset -> {
-          try {
-            log.info("Discarding column lineage facet for dataset {} {} {}", dataset.getClass().getName(), dataset.getNamespace(), dataset.getName());
-              columnLineageFacetField.set(dataset.getFacets(), null);
-          } catch (IllegalAccessException e) {
-            log.warn("Failed to discard column lineage facet", e);
-          }
-      });
-    } catch (NoSuchFieldException e) {
-        log.error("Failed to discard column lineage facet: columnLineage field not found at OpenLineage.DatasetFacets", e);
-    }
   }
 
   @Override
@@ -157,14 +106,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (!shouldEmit(event)) {
-      return;
-    }
-
-    discardColumnLineage(event);
-
     log.debug("Posting event for start {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -210,16 +153,10 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (!shouldEmit(event)) {
-      return;
-    }
-
-    discardColumnLineage(event);
-
     if (log.isDebugEnabled()) {
       log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
@@ -249,14 +186,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (!shouldEmit(event)) {
-      return;
-    }
-
-    discardColumnLineage(event);
-
     log.debug("Posting event for stage submitted {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
@@ -285,14 +216,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (!shouldEmit(event)) {
-      return;
-    }
-
-    discardColumnLineage(event);
-
     log.debug("Posting event for stage completed {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -344,14 +269,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (!shouldEmit(event)) {
-      return;
-    }
-
-    discardColumnLineage(event);
-
     log.debug("Posting event for start {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -399,14 +318,8 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    if (!shouldEmit(event)) {
-      return;
-    }
-
-    discardColumnLineage(event);
-
     log.debug("Posting event for end {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
