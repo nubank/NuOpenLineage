@@ -77,7 +77,7 @@ public class NuEventEmitter {
                     .forEach(dataset -> {
                         try {
                             log.debug("Discarding column lineage facet for dataset {} {} {}",
-                                    dataset.getClass().getName(), dataset.getNamespace(), dataset.getName());
+                                    dataset.getClass().getSimpleName(), dataset.getNamespace(), dataset.getName());
                             columnLineageFacetField.set(dataset.getFacets(), null);
                         } catch (IllegalAccessException e) {
                             log.error("Failed to discard column lineage facet", e);
