@@ -16,17 +16,20 @@ import io.openlineage.client.OpenLineage.RunEvent;
 import io.openlineage.client.OpenLineage.RunEvent.EventType;
 import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.spark.agent.EventEmitter;
+import io.openlineage.spark.agent.NuEventEmitter;
 import io.openlineage.spark.agent.filters.EventFilterUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.naming.JobNameBuilder;
+
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.ActiveJob;
 import org.apache.spark.scheduler.JobFailed;
@@ -50,7 +53,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
   private static final String SPARK_PROCESSING_TYPE_BATCH = "BATCH";
   private static final String SPARK_PROCESSING_TYPE_STREAMING = "STREAMING";
   private final long executionId;
-  private String jobName;
   private final OpenLineageContext olContext;
   private final EventEmitter eventEmitter;
   private final OpenLineageRunEventBuilder runEventBuilder;
@@ -88,30 +90,28 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerSQLExecutionStart");
       // return;
     }
-
     olContext.setActiveJobId(activeJobId);
-    // We shall skip this START event, focusing on the first SparkListenerJobStart event to be the START, because of the presence of the job nurn
     // only one START event is expected, in case it was already sent with jobStart, we send running
-    // EventType eventType = emittedOnJobStart ? RUNNING : START;
-    // emittedOnSqlExecutionStart = true;
+     EventType eventType = emittedOnJobStart ? RUNNING : START;
+     emittedOnSqlExecutionStart = true;
 
-//    RunEvent event =
-//        runEventBuilder.buildRun(
-//            OpenLineageRunEventContext.builder()
-//                .applicationParentRunFacet(buildApplicationParentFacet())
-//                .event(startEvent)
-//                .runEventBuilder(
-//                    olContext
-//                        .getOpenLineage()
-//                        .newRunEventBuilder()
-//                        .eventTime(toZonedTime(startEvent.time()))
-//                        .eventType(eventType))
-//                .jobBuilder(buildJob())
-//                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-//                .build());
+    RunEvent event =
+        runEventBuilder.buildRun(
+            OpenLineageRunEventContext.builder()
+                .applicationParentRunFacet(buildApplicationParentFacet())
+                .event(startEvent)
+                .runEventBuilder(
+                    olContext
+                        .getOpenLineage()
+                        .newRunEventBuilder()
+                        .eventTime(toZonedTime(startEvent.time()))
+                        .eventType(eventType))
+                .jobBuilder(buildJob())
+                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
+                .build());
 
-    // log.debug("Posting event for start {}: {}", executionId, event);
-    // eventEmitter.emit(event);
+    log.debug("Posting event for start {}: {}", executionId, event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -160,7 +160,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (log.isDebugEnabled()) {
       log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
@@ -191,7 +191,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for stage submitted {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
@@ -221,7 +221,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for stage completed {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -244,12 +244,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
   @Override
   public void start(SparkListenerJobStart jobStart) {
     log.debug("SparkListenerJobStart - executionId: {}", executionId);
-    try {
-      jobName = jobStart.properties().getProperty("spark.job.name");
-    } catch (RuntimeException e) {
-      log.info("spark.job.name property not found in the context");
-    }
-    olContext.setJobNurn(jobName);
     if (!olContext.getQueryExecution().isPresent()) {
       log.info(NO_EXECUTION_INFO, olContext);
       return;
@@ -262,7 +256,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
     // only one START event is expected, in case it was already sent with sqlExecutionStart, we send
     // running
     EventType eventType = emittedOnSqlExecutionStart ? RUNNING : START;
-    emittedOnSqlExecutionStart = true;
     emittedOnJobStart = true;
 
     RunEvent event =
@@ -281,7 +274,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for start {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -330,7 +323,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for end {}: {}", executionId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override

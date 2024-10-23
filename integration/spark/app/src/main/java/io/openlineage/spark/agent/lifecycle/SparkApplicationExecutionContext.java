@@ -12,6 +12,7 @@ import static io.openlineage.spark.agent.util.TimeUtils.toZonedTime;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.RunEvent;
 import io.openlineage.spark.agent.EventEmitter;
+import io.openlineage.spark.agent.NuEventEmitter;
 import io.openlineage.spark.agent.filters.EventFilterUtils;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.naming.JobNameBuilder;
@@ -95,7 +96,7 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for applicationId {} start: {}", applicationId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -126,7 +127,7 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for applicationId {} end: {}", applicationId, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   private OpenLineage.ParentRunFacet buildApplicationParentFacet() {
