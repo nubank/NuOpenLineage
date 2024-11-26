@@ -16,9 +16,11 @@ from openlineage.client.facet_v2 import (
     InputDatasetFacet,
     JobFacet,
     OutputDatasetFacet,
+    column_lineage_dataset,
     data_quality_assertions_dataset,
     datasource_dataset,
     documentation_dataset,
+    job_type_job,
     output_statistics_output_dataset,
     parent_run,
     schema_dataset,
@@ -28,6 +30,7 @@ from openlineage.client.uuid import generate_new_uuid
 from openlineage.common.provider.snowflake import fix_account_name
 from openlineage.common.schema import GITHUB_LOCATION
 from openlineage.common.utils import get_from_multiple_chains, get_from_nullable_chain
+from openlineage_sql import parse as parse_sql
 
 
 class Adapter(Enum):
@@ -166,6 +169,7 @@ class DbtArtifactProcessor:
         self.command = None
         self.models = models or []
         self.selector = selector
+        self.manifest_version = None
 
     @property
     def dbt_run_metadata(self):
@@ -259,26 +263,49 @@ class DbtArtifactProcessor:
 
             run_id = str(generate_new_uuid())
             if name.startswith("snapshot."):
+                jobType = "SNAPSHOT"
                 job_name = (
                     f"{output_node['database']}.{output_node['schema']}"
                     f".{self.removeprefix(run['unique_id'], 'snapshot.')}"
                     + (".build.snapshot" if self.command == "build" else ".snapshot")
                 )
             else:
+                jobType = "MODEL"
                 job_name = (
                     f"{output_node['database']}.{output_node['schema']}"
                     f".{self.removeprefix(run['unique_id'], 'model.')}"
                     + (".build.run" if self.command == "build" else "")
                 )
 
-            if self.manifest_version >= 7:
+            if self.manifest_version >= 7:  # type: ignore
                 sql = output_node.get("compiled_code", None)
             else:
                 sql = output_node["compiled_sql"]
 
-            job_facets: Dict[str, JobFacet] = {}
+            job_facets: Dict[str, JobFacet] = {
+                "jobType": job_type_job.JobTypeJobFacet(
+                    jobType=jobType,
+                    integration="DBT",
+                    processingType="BATCH",
+                    producer=self.producer,
+                )
+            }
             if sql:
                 job_facets["sql"] = sql_job.SQLJobFacet(sql)
+
+            output_dataset = self.node_to_output_dataset(
+                ModelNode(
+                    output_node,
+                    get_from_nullable_chain(context.catalog, ["nodes", run["unique_id"]]),
+                ),
+                has_facets=True,
+            )
+
+            # Add column lineage if SQL is available
+            if sql:
+                column_lineage = self.get_column_lineage(output_dataset.namespace, sql)
+                if column_lineage:
+                    output_dataset.facets["columnLineage"] = column_lineage  # type: ignore
 
             events.add(
                 self.to_openlineage_events(
@@ -288,13 +315,7 @@ class DbtArtifactProcessor:
                     self.get_run(run_id),
                     Job(namespace=self.job_namespace, name=job_name, facets=job_facets),
                     [self.node_to_dataset(node, has_facets=True) for node in inputs],
-                    self.node_to_output_dataset(
-                        ModelNode(
-                            output_node,
-                            get_from_nullable_chain(context.catalog, ["nodes", run["unique_id"]]),
-                        ),
-                        has_facets=True,
-                    ),
+                    output_dataset,
                 )
             )
         return events
@@ -307,7 +328,8 @@ class DbtArtifactProcessor:
         assertions = self.parse_assertions(context, nodes)
 
         events = DbtEvents()
-        for name, node in context.manifest["nodes"].items():
+        manifest_nodes = {**context.manifest["nodes"], **context.manifest["sources"]}
+        for name, node in manifest_nodes.items():
             if not name.startswith("model.") and not name.startswith("source."):
                 continue
             if len(assertions[name]) == 0:
@@ -327,6 +349,15 @@ class DbtArtifactProcessor:
                 + (".build.test" if self.command == "build" else ".test")
             )
 
+            job_facets: Dict[str, JobFacet] = {
+                "jobType": job_type_job.JobTypeJobFacet(
+                    jobType="TEST",
+                    integration="DBT",
+                    processingType="BATCH",
+                    producer=self.producer,
+                )
+            }
+
             run_id = str(generate_new_uuid())
             dataset_facets: Dict[str, InputDatasetFacet] = {"dataQualityAssertions": assertion_facet}
             events.add(
@@ -335,7 +366,7 @@ class DbtArtifactProcessor:
                     started_at,
                     completed_at,
                     self.get_run(run_id),
-                    Job(self.job_namespace, job_name),
+                    Job(namespace=self.job_namespace, name=job_name, facets=job_facets),
                     [
                         InputDataset(
                             namespace=namespace,
@@ -364,11 +395,19 @@ class DbtArtifactProcessor:
                 if node.startswith("model.") or node.startswith("source."):
                     model_node = node
 
+            if self.manifest_version >= 12:  # type: ignore
+                name = test_node["name"]
+                node_columns = test_node
+
+            else:
+                name = test_node["test_metadata"]["name"]
+                node_columns = test_node["test_metadata"]
+
             assertions[model_node].append(
                 data_quality_assertions_dataset.Assertion(
-                    assertion=test_node["test_metadata"]["name"],
+                    assertion=name,
                     success=True if run["status"] == "pass" else False,
-                    column=get_from_nullable_chain(test_node["test_metadata"], ["kwargs", "column_name"]),
+                    column=get_from_nullable_chain(node_columns, ["kwargs", "column_name"]),
                 )
             )
 
@@ -639,3 +678,37 @@ class DbtArtifactProcessor:
             return string[len(prefix) :]
         else:
             return string[:]
+
+    def get_column_lineage(
+        self, namespace: str, compiled_sql: str
+    ) -> Optional[column_lineage_dataset.ColumnLineageDatasetFacet]:
+        """Parse SQL and extract column-level lineage information
+
+        Args:
+            namespace: The namespace for the column lineage
+            compiled_sql: The compiled SQL to parse
+
+        Returns:
+            ColumnLineageDatasetFacet if lineage can be parsed, None otherwise
+        """
+        try:
+            parsed = parse_sql([compiled_sql])
+            if parsed and parsed.column_lineage:
+                fields = {}
+                for cll_item in parsed.column_lineage:
+                    fields[cll_item.descendant.name] = column_lineage_dataset.Fields(
+                        inputFields=[
+                            column_lineage_dataset.InputField(
+                                namespace=namespace,
+                                name=f"{column_meta.origin.database}.{column_meta.origin.schema}.{column_meta.origin.name}",  # type: ignore
+                                field=column_meta.name,
+                            )
+                            for column_meta in cll_item.lineage
+                        ],
+                        transformationType="",
+                        transformationDescription="",
+                    )
+                return column_lineage_dataset.ColumnLineageDatasetFacet(fields=fields)
+        except Exception as e:
+            self.logger.warning(f"Failed to parse column lineage: {e}")
+        return None

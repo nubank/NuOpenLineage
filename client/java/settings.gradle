@@ -6,8 +6,9 @@
 rootProject.name = 'openlineage-java'
 
 include('generator')
-include('transports-dataplex')
+include('transports-gcplineage')
 include('transports-gcs')
+include('transports-kinesis')
 include('transports-s3')
 
 buildCache {

@@ -25,16 +25,16 @@ ext {
 
     assertjVersion = '3.26.3'
     bigqueryVersion = '0.35.1'
-    junit5Version = '5.11.1'
+    junit5Version = '5.11.3'
     mockitoVersion = '4.11.0'
     postgresqlVersion = '42.7.4'
-    testcontainersVersion = '1.20.1'
+    testcontainersVersion = '1.20.3'
     configurableTestConfig = [
-        sparkConfFile: project.findProperty('spark.conf.file') ?: System.getProperty('spark.conf.file'),
-        hostDir: project.findProperty('host.dir') ?: System.getProperty('host.dir'),
-        testDir: project.findProperty('test.dir') ?: System.getProperty('test.dir')
+            sparkConfFile: project.findProperty('spark.conf.file') ?: System.getProperty('spark.conf.file'),
+            hostDir      : project.findProperty('host.dir') ?: System.getProperty('host.dir'),
+            testDir      : project.findProperty('test.dir') ?: System.getProperty('test.dir')
     ]
-    micrometerVersion = '1.13.4'
+    micrometerVersion = '1.13.6'
 }
 
 // This workaround is needed because the version of Snappy that Spark 2.4.x runs with,
@@ -90,7 +90,9 @@ dependencies {
     implementation(project(path: ":spark34", configuration: activeRuntimeElementsConfiguration))
     implementation(project(path: ":spark35", configuration: activeRuntimeElementsConfiguration))
     implementation(project(path: ":spark40", configuration: "scala213RuntimeElements"))
-    implementation("org.apache.httpcomponents.client5:httpclient5:5.4")
+    implementation(project(path: ":iceberg"))
+
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.4.1")
 
     compileOnly("org.apache.spark:spark-core_${scala}:${spark}")
     compileOnly("org.apache.spark:spark-sql_${scala}:${spark}")
@@ -107,7 +109,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-params")
     testImplementation("org.postgresql:postgresql:${postgresqlVersion}")
     testImplementation('org.hamcrest:hamcrest-library:3.0')
-    testImplementation('org.xerial:sqlite-jdbc:3.46.1.3')
+    testImplementation('org.xerial:sqlite-jdbc:3.47.0.0')
     testImplementation(platform("org.testcontainers:testcontainers-bom:${testcontainersVersion}"))
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
@@ -119,10 +121,16 @@ dependencies {
     testImplementation("org.mockito:mockito-core:${mockitoVersion}")
     testImplementation("org.mockito:mockito-inline:${mockitoVersion}")
     testImplementation("org.mockito:mockito-junit-jupiter:${mockitoVersion}")
-    testImplementation("com.databricks:databricks-sdk-java:0.4.0") {
+    testImplementation("com.databricks:databricks-sdk-java:0.32.2") {
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.module'
     }
+
+    testImplementation(platform("software.amazon.awssdk:bom:2.29.9"))
+    testImplementation("software.amazon.awssdk:auth")
+    testImplementation("software.amazon.awssdk:emr")
+    testImplementation("software.amazon.awssdk:s3")
+
     testImplementation("org.mock-server:mockserver-netty:5.14.0:shaded") {
         exclude group: 'com.google.guava', module: 'guava'
         exclude group: 'com.fasterxml.jackson.core'
@@ -136,7 +144,7 @@ dependencies {
     testImplementation('net.javacrumbs.json-unit:json-unit-core:2.38.0')
 
     testRuntimeOnly("org.slf4j:slf4j-api:2.0.16")
-    testRuntimeOnly(platform("org.apache.logging.log4j:log4j-bom:2.24.0"))
+    testRuntimeOnly(platform("org.apache.logging.log4j:log4j-bom:2.24.1"))
     testRuntimeOnly("org.apache.logging.log4j:log4j-api")
     testRuntimeOnly("org.apache.logging.log4j:log4j-core")
     testRuntimeOnly("org.apache.logging.log4j:log4j-slf4j-impl")
@@ -166,8 +174,17 @@ final def testResourcesDir = buildDirectory.dir("resources/test")
 final def libsShadowDir = buildDirectory.dir("libs/shadow")
 final def scalaFixturesJarName = "openlineage-spark-scala-fixtures_${scala}-${project.version}.jar"
 
+/**
+ The "test" task runs JUnit tests in a separate JVM, and by default, system properties (-D parameters)
+ are not forwarded to it.
+ Here we selectively create and pass properties that are used in the tests.
+ Apart from special technical properties, we pass all the system properties that start with "openlineage".
+ They are commonly used in {@link io.openlineage.spark.agent.DynamicParameter} interface implementations
+ to accept parameters.
+ */
 def testSystemProperties = { String spark, String scala ->
-    [
+    Map<String, String> openLineageSystemProperties = System.getProperties().findAll { key, value -> key.toString().startsWith("openlineage") }
+    openLineageSystemProperties + [
             "additional.conf.dir"                 : destAdditionalConfDir.get().asFile.absolutePath,
             "additional.jars.dir"                 : destAdditionalJarsDir.get().asFile.absolutePath,
             "build.dir"                           : buildDirectory.get().asFile.absolutePath,
@@ -230,6 +247,7 @@ tasks.named("shadowJar", ShadowJar.class) {
         exclude(project(path: ":spark34", configuration: activeRuntimeElementsConfiguration))
         exclude(project(path: ":spark35", configuration: activeRuntimeElementsConfiguration))
         exclude(project(path: ":spark40", configuration: "scala213RuntimeElements"))
+        exclude(project(path: ":iceberg"))
     }
 
     dependencies {
@@ -369,6 +387,13 @@ tasks.register("integrationTest", Test.class) {
     useJUnitPlatform {
         includeTags("integration-test")
         excludeTags("configurable-integration-test")
+        /*
+         We don't want to run Databricks or AWS integration tests by default.
+         The "regular" integration tests are run for every pull request.
+         We want to run Databricks and AWS integration tests on demand and nightly.
+         See `databricksIntegrationTest` and `awsIntegrationTest` tasks.
+         */
+        excludeTags("aws")
         excludeTags("databricks")
         logger.warn("[IntegrationTest] hasDeltaDependencies: ${hasDeltaDependencies(spark, scala)}")
         if (!hasDeltaDependencies(spark, scala)) {
@@ -395,6 +420,19 @@ tasks.register("databricksIntegrationTest", Test) {
     }
 }
 
+tasks.register("awsIntegrationTest", Test) {
+    group = "verification"
+    dependsOn(integrationTestDependencies)
+    testClassesDirs = testSourceSet.output.classesDirs
+    classpath = files(tasks.shadowJar.outputs.files.singleFile, sourceSets.test.runtimeClasspath)
+    useJUnitPlatform {
+        includeTags("aws")
+    }
+    testLogging {
+        exceptionFormat "full"
+    }
+}
+
 tasks.register("configurableIntegrationTest", Test) {
     group = "verification"
     dependsOn(integrationTestDependencies)
@@ -403,9 +441,9 @@ tasks.register("configurableIntegrationTest", Test) {
     useJUnitPlatform {
         includeTags("configurable-integration-test")
     }
-    systemProperties.put("spark.conf.file", configurableTestConfig["sparkConfFile"] )
-    systemProperties.put("test.dir", configurableTestConfig["testDir"] )
-    systemProperties.put("host.dir", configurableTestConfig["hostDir"] )
+    systemProperties.put("spark.conf.file", configurableTestConfig["sparkConfFile"])
+    systemProperties.put("test.dir", configurableTestConfig["testDir"])
+    systemProperties.put("host.dir", configurableTestConfig["hostDir"])
 
     environment("TESTCONTAINERS_HOST_OVERRIDE", "host.docker.internal")
 }

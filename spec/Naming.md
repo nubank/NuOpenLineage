@@ -1,5 +1,7 @@
 # Naming
 
+## This document is obsolete, please look at the [OpenLineage Naming Conventions](https://openlineage.io/docs/spec/naming)
+
 We define the unique name strategy per resource to ensure it is followed uniformly independently of who is producing
 metadata, so we can connect lineage from various sources.
 
@@ -326,11 +328,11 @@ Naming hierarchy:
 
 Identifier :
 
-- Namespace: hdfs://{workspace name}
-  - Scheme = hdfs
+- Namespace: dbfs://{workspace name}
+  - Scheme = dbfs
   - Authority = workspace name
 - Unique name: {path}
-  - URI = hdfs://{workspace name}{path}
+  - URI = dbfs://{workspace name}{path}
 
 #### GCS
 
@@ -380,6 +382,19 @@ Identifier :
   - URI = kafka://{bootstrap server host}:{port}/{topic name}
 
 ### Local file system
+
+Naming hierarchy:
+
+- Path
+
+Identifier :
+
+- Namespace: file
+  - Scheme = file
+- Unique name: {path}
+  - URI = file://{path}
+
+### Remote file system
 
 Datasource hierarchy:
 

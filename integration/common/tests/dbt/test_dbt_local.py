@@ -10,6 +10,7 @@ from unittest import mock
 import attr
 import pytest
 from openlineage.client import set_producer
+from openlineage.client.facet_v2 import column_lineage_dataset
 from openlineage.common.provider.dbt.local import (
     DbtLocalArtifactProcessor,
     LazyJinjaLoadDict,
@@ -70,21 +71,29 @@ def test_dbt_parse_and_compare_event(path, parent_run_metadata):
         assert match(json.load(f), events)
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tests/dbt/test",
+        "tests/dbt/no_test_metadata",
+    ],
+)
 @mock.patch("openlineage.common.provider.dbt.processor.generate_new_uuid")
 @mock.patch("datetime.datetime")
-def test_dbt_parse_dbt_test_event(mock_datetime, mock_uuid, parent_run_metadata):
+def test_dbt_parse_dbt_test_event(mock_datetime, mock_uuid, parent_run_metadata, path):
     mock_datetime.now.return_value.isoformat.return_value = "2021-08-25T11:00:25.277467+00:00"
     mock_uuid.side_effect = [
         "6edf42ed-d8d0-454a-b819-d09b9067ff99",
         "1a69c0a7-04bb-408b-980e-cbbfb1831ef7",
         "f99310b4-339a-4381-ad3e-c1b95c24ff11",
         "c11f2efd-4415-45fc-8081-10d2aaa594d2",
+        "b901441a-7b4a-4a97-aa61-a200106b3ce3",
     ]
 
     processor = DbtLocalArtifactProcessor(
         producer="https://github.com/OpenLineage/OpenLineage/tree/0.0.1/integration/dbt",
         job_namespace="dbt-test-namespace",
-        project_dir="tests/dbt/test",
+        project_dir=path,
     )
     processor.dbt_run_metadata = parent_run_metadata
 
@@ -93,7 +102,7 @@ def test_dbt_parse_dbt_test_event(mock_datetime, mock_uuid, parent_run_metadata)
         attr.asdict(event, value_serializer=serialize)
         for event in dbt_events.starts + dbt_events.completes + dbt_events.fails
     ]
-    with open("tests/dbt/test/result.json") as f:
+    with open(f"{path}/result.json") as f:
         assert match(json.load(f), events)
 
 
@@ -260,3 +269,50 @@ def test_build_target_path(test_name, dbt_project, expected):
         job_namespace="ol-namespace",
     )
     assert processor.build_target_path(dbt_project) == expected
+
+
+def test_column_lineage():
+    """Test that column lineage is correctly parsed and added to output dataset facets"""
+    sql = """
+    SELECT
+        users.id as user_id,
+        users.name as user_name,
+        orders.amount as order_amount
+    FROM users
+    JOIN orders ON users.id = orders.user_id
+    """
+    processor = DbtLocalArtifactProcessor(
+        producer="https://github.com/OpenLineage/OpenLineage/tree/0.0.1/integration/dbt",
+        project_dir="tests/dbt/env_vars",
+        target="prod",
+        job_namespace="ol-namespace",
+    )
+
+    # Test column lineage parsing
+    column_lineage = processor.get_column_lineage("test_namespace", sql)
+
+    # Verify the column lineage facet was created
+    assert column_lineage is not None
+    assert isinstance(column_lineage, column_lineage_dataset.ColumnLineageDatasetFacet)
+
+    # Check the parsed fields
+    assert "user_id" in column_lineage.fields
+    assert "user_name" in column_lineage.fields
+    assert "order_amount" in column_lineage.fields
+    assert len(column_lineage.fields) == 3
+
+    # Verify field lineage details
+    user_id_field = column_lineage.fields["user_id"]
+    assert len(user_id_field.inputFields) == 1
+    assert user_id_field.inputFields[0].field == "id"
+    assert "users" in user_id_field.inputFields[0].name
+
+    user_name_field = column_lineage.fields["user_name"]
+    assert len(user_name_field.inputFields) == 1
+    assert user_name_field.inputFields[0].field == "name"
+    assert "users" in user_name_field.inputFields[0].name
+
+    order_amount_field = column_lineage.fields["order_amount"]
+    assert len(order_amount_field.inputFields) == 1
+    assert order_amount_field.inputFields[0].field == "amount"
+    assert "orders" in order_amount_field.inputFields[0].name

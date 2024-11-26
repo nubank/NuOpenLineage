@@ -11,6 +11,7 @@ import io.openlineage.client.OpenLineage;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.client.utils.DatasetIdentifier.SymlinkType;
 import io.openlineage.client.utils.filesystem.FilesystemDatasetUtils;
+import io.openlineage.spark.agent.util.AwsUtils;
 import io.openlineage.spark.agent.util.PathUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.agent.util.SparkConfUtils;
@@ -222,7 +223,7 @@ public class IcebergHandler implements CatalogHandler {
   private DatasetIdentifier getGlueIdentifier(String table, SparkSession sparkSession) {
     SparkContext sparkContext = sparkSession.sparkContext();
     String arn =
-        PathUtils.getGlueArn(sparkContext.getConf(), sparkContext.hadoopConfiguration()).get();
+        AwsUtils.getGlueArn(sparkContext.getConf(), sparkContext.hadoopConfiguration()).get();
     return new DatasetIdentifier(GLUE_TABLE_PREFIX + table.replace(".", "/"), arn);
   }
 
@@ -261,7 +262,11 @@ public class IcebergHandler implements CatalogHandler {
         SparkSessionCatalog sparkCatalog = (SparkSessionCatalog) tableCatalog;
         return Optional.ofNullable(sparkCatalog.icebergCatalog().loadTable(tableIdentifier));
       }
-    } catch (NoSuchTableException | ClassCastException e) {
+    } catch (NoSuchTableException e) {
+      // don't log stack trace for missing tables
+      log.warn("Failed to load table from catalog: {}", identifier);
+      return Optional.empty();
+    } catch (ClassCastException e) {
       log.error("Failed to load table from catalog: {}", identifier, e);
       return Optional.empty();
     }

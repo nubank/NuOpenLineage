@@ -10,11 +10,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import com.google.common.io.CharStreams;
 import io.openlineage.client.Environment;
 import io.openlineage.spark.api.OpenLineageContext;
+import io.openlineage.spark.api.naming.NameNormalizer;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.http.Consts;
@@ -86,14 +86,17 @@ public class GCPUtils {
         getClusterUUID(context).ifPresent(p -> dataprocProperties.put("clusterUuid", p));
         getDataprocJobID(context).ifPresent(p -> dataprocProperties.put("jobId", p));
         getDataprocJobUUID(context).ifPresent(p -> dataprocProperties.put("jobUuid", p));
+        dataprocProperties.put("jobType", "dataproc_job");
         break;
       case BATCH:
         getDataprocBatchID(context).ifPresent(p -> dataprocProperties.put("batchId", p));
         getDataprocBatchUUID(context).ifPresent(p -> dataprocProperties.put("batchUuid", p));
+        dataprocProperties.put("jobType", "batch");
         break;
       case INTERACTIVE:
         getDataprocSessionID(context).ifPresent(p -> dataprocProperties.put("sessionId", p));
         getDataprocSessionUUID(context).ifPresent(p -> dataprocProperties.put("sessionUuid", p));
+        dataprocProperties.put("jobType", "session");
         break;
       case UNKNOWN:
         // do nothing
@@ -114,7 +117,7 @@ public class GCPUtils {
 
     SparkPlan node = context.getQueryExecution().get().executedPlan();
     if (node instanceof WholeStageCodegenExec) node = ((WholeStageCodegenExec) node).child();
-    return Optional.of(normalizeName(node.nodeName()));
+    return Optional.of(NameNormalizer.normalize(node.nodeName()));
   }
 
   private static ResourceType identifyResource(SparkContext context) {
@@ -209,12 +212,6 @@ public class GCPUtils {
     originProperties.put("name", dataprocResource);
     originProperties.put("sourceType", "DATAPROC");
     return originProperties;
-  }
-
-  private static String normalizeName(String name) {
-    String CAMEL_TO_SNAKE_CASE =
-        "[\\s\\-_]?((?<=.)[A-Z](?=[a-z\\s\\-_])|(?<=[^A-Z])[A-Z]|((?<=[\\s\\-_])[a-z\\d]))";
-    return name.replaceAll(CAMEL_TO_SNAKE_CASE, "_$1").toLowerCase(Locale.ROOT);
   }
 
   private static Optional<String> getPropertyFromYarnTag(SparkContext context, String tagPrefix) {

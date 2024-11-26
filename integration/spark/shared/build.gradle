@@ -29,15 +29,15 @@ ext {
     awaitilityVersion = "4.2.2"
     bigqueryVersion = "0.41.0"
     databricksVersion = "0.1.4"
-    junit5Version = "5.11.1"
-    kafkaClientsVersion = "3.8.0"
-    micrometerVersion = '1.13.4'
+    junit5Version = "5.11.3"
+    kafkaClientsVersion = "3.9.0"
+    micrometerVersion = '1.13.6'
     mockitoVersion = "4.11.0"
     mockserverVersion = "5.14.0"
     postgresqlVersion = "42.7.4"
-    sqlLiteVersion = "3.46.1.3"
+    sqlLiteVersion = "3.47.0.0"
     testcontainersVersion = "1.19.3"
-    micrometerVersion = '1.13.2'
+    awsSdkVersion = '2.29.9'
 
     sparkVersion = project.findProperty("shared.spark.version")
     sparkSeries = sparkVersion.substring(0, 3)
@@ -63,6 +63,16 @@ dependencies {
         exclude(group: "com.fasterxml.jackson.core")
         exclude(group: "com.fasterxml.jackson.module")
     }
+
+    implementation(platform("software.amazon.awssdk:bom:${awsSdkVersion}"))
+    implementation("software.amazon.awssdk:sts")
+    implementation("software.amazon.awssdk:url-connection-client")
+    scala212Implementation(platform("software.amazon.awssdk:bom:${awsSdkVersion}"))
+    scala212Implementation("software.amazon.awssdk:sts")
+    scala212Implementation("software.amazon.awssdk:url-connection-client")
+    scala213Implementation(platform("software.amazon.awssdk:bom:${awsSdkVersion}"))
+    scala213Implementation("software.amazon.awssdk:sts")
+    scala213Implementation("software.amazon.awssdk:url-connection-client")
 
     // TODO: Convert these to testImplementation
     testFixturesApi(platform("org.junit:junit-bom:${junit5Version}"))

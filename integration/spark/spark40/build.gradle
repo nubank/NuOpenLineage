@@ -13,6 +13,12 @@ scalaVariants {
     create("2.13")
 }
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
 idea {
     module {
         testSources.from(sourceSets.testScala213.java.srcDirs)
@@ -22,9 +28,9 @@ idea {
 ext {
     assertjVersion = "3.26.3"
     commonsLangVersion = "3.12.0"
-    junit5Version = "5.11.1"
+    junit5Version = "5.11.3"
     mockitoVersion = "4.11.0"
-    micrometerVersion = "1.13.4"
+    micrometerVersion = "1.13.6"
 
     sparkVersion = project.findProperty("spark40.spark.version") + "-preview1"
     scalaBinaryVersion = "2.13"
