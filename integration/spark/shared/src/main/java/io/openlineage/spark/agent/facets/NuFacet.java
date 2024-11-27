@@ -10,7 +10,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.spark.agent.Versions;
 
-import java.util.*;
+import java.util.Map;
 
 import lombok.Getter;
 import lombok.NonNull;
