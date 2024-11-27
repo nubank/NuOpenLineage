@@ -4,3 +4,5 @@ bin/
 */spark-warehouse
 
 .sdkmanrc
+
+integration/spark/docker/notebooks/
