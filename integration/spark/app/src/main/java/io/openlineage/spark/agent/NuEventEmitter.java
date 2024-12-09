@@ -4,6 +4,9 @@ import io.openlineage.client.OpenLineage;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -16,13 +19,17 @@ import static java.util.Objects.isNull;
 @Slf4j
 public class NuEventEmitter {
 
-    private static final Set<String> WANTED_JOB_TYPES = Set.of(
-            "SQL_JOB" // as defined in SparkSQLExecutionContext.SPARK_JOB_TYPE
+    private static final Set<String> WANTED_JOB_TYPES = new HashSet<>(
+            Collections.singletonList(
+                    "SQL_JOB" // as defined in SparkSQLExecutionContext.SPARK_JOB_TYPE
+            )
     );
 
-    private static final Set<String> WANTED_EVENT_NAME_SUBSTRINGS = Set.of(
-            ".execute_insert_into_hadoop_fs_relation_command.",
-            ".adaptive_spark_plan."
+    private static final Set<String> WANTED_EVENT_NAME_SUBSTRINGS = new HashSet<>(
+            Arrays.asList(
+                    ".execute_insert_into_hadoop_fs_relation_command.",
+                    ".adaptive_spark_plan."
+            )
     );
 
     private static Boolean isPermittedJobType(RunEvent event) {
@@ -49,7 +56,7 @@ public class NuEventEmitter {
             return false;
         }
         if (WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(jobName::contains)) {
-            log.debug("OpenLineage event job name has no permitted substring and should not be emitted");
+            log.debug("OpenLineage event job name {} has no permitted substring and should not be emitted", jobName);
             return false;
         }
         return true;
