@@ -1,3 +1,4 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
@@ -193,3 +194,60 @@ shadowJar {
     }
     zip64 true
 }
+
+//When pulling updates from upstream, we must make sure to replicate the changes from shadowJar task in the following block
+tasks.register('thinShadowJar', ShadowJar) {
+    configurations = [project.configurations.runtimeClasspath]
+    archiveClassifier = "thin"
+
+    minimize() {
+        // Excluded projects should match the same as in shadowJar task
+        exclude(project(path: ":app"))
+        exclude(project(path: ":shared", configuration: activeRuntimeElementsConfiguration))
+        exclude(project(path: ":spark2"))
+        exclude(project(path: ":spark3", configuration: activeRuntimeElementsConfiguration))
+        exclude(project(path: ":spark31"))
+        exclude(project(path: ":spark32", configuration: activeRuntimeElementsConfiguration))
+        exclude(project(path: ":spark33", configuration: activeRuntimeElementsConfiguration))
+        exclude(project(path: ":spark34", configuration: activeRuntimeElementsConfiguration))
+        exclude(project(path: ":spark35", configuration: activeRuntimeElementsConfiguration))
+        exclude(project(path: ":snowflake"))
+    }
+
+    dependencies {
+        //Any new external dependency should be accounted for here
+        exclude(dependency("org.slf4j::"))
+        exclude("org/apache/commons/logging/**")
+        exclude("io/openlineage/server/**")
+        exclude("com/fasterxml/jackson/**")
+        exclude("org/apache/http/**")
+        exclude("org/apache/httpcomponents/client5/**")
+        exclude("com/github/ok2c/hc5/**")
+        exclude("org/apache/hc/**")
+        exclude("org/HdrHistogram/**")
+        exclude("org/LatencyUtils/**")
+        exclude("org/apache/commons/codec/**")
+        exclude("org/apache/commons/lang3/**")
+        exclude("org/apache/commons/beanutils/**")
+        exclude("org/yaml/snakeyaml/**")
+        exclude("javassist/**")
+        exclude("io/openlineage/sql/libopenlineage_sql_java_arm64.dylib")
+        exclude("io/micrometer/**")
+        exclude("mozilla/**")
+        exclude("org/publicsuffix/**")
+    }
+
+    manifest {
+        attributes(
+                "Created-By": "Gradle ${gradle.gradleVersion}",
+                "Built-By": System.getProperty("user.name"),
+                "Build-Jdk": System.getProperty("java.version"),
+                "Implementation-Title": project.name,
+                "Implementation-Version": project.version
+        )
+    }
+    zip64 true
+}
+
+//This line makes sure ./gradlew publishToMavenLocal also builds the thinShadowJar
+publishToMavenLocal.dependsOn thinShadowJar
