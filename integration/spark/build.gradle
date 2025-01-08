@@ -14,11 +14,12 @@ plugins {
 
 group = "io.openlineage"
 
-
 ext {
     isReleaseVersion = !version.endsWith("SNAPSHOT")
     scala = project.findProperty("scala.binary.version").toString()
     scalaFmt = scala.replace(".", "")
+    //check if property commitHash is set. If yes, concatenate it with the version
+    versionCommitID = project.hasProperty("commitID") ? "${version}-${project.commitID}" : version
 }
 
 final def archiveBaseName = "openlineage-spark_${scala}"
@@ -204,6 +205,7 @@ publishing {
                 name = "nu-openlineage-spark_${scala}"
                 description = "Nu OpenLineage Spark integration for Scala binary version ${scala}"
                 url = "https://github.com/nubank/NuOpenLineage"
+                version = versionCommitID
                 licenses {
                     license {
                         name = "The Apache License, Version 2.0"
