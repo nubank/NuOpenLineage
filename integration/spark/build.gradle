@@ -100,6 +100,9 @@ shadowJar {
         exclude(dependency("org.slf4j::"))
         exclude("org/apache/commons/logging/**")
         exclude("io/openlineage/server/**")
+        exclude("io/openlineage/sql/libopenlineage_sql_java_x86_64.so")
+        exclude("io/openlineage/sql/libopenlineage_sql_java_aarch64.so")
+        exclude("io/openlineage/sql/libopenlineage_sql_java_arm64.dylib")
     }
 
     relocate "com.github.ok2c.hc5", "io.openlineage.spark.shaded.com.github.ok2c.hc5"
@@ -150,6 +153,9 @@ tasks.register('thinShadowJar', ShadowJar) {
         exclude(dependency("org.slf4j::"))
         exclude("org/apache/commons/logging/**")
         exclude("io/openlineage/server/**")
+        exclude("io/openlineage/sql/libopenlineage_sql_java_x86_64.so")
+        exclude("io/openlineage/sql/libopenlineage_sql_java_aarch64.so")
+        exclude("io/openlineage/sql/libopenlineage_sql_java_arm64.dylib")
         exclude("com/fasterxml/jackson/**")
         exclude("org/apache/http/**")
         exclude("org/apache/httpcomponents/client5/**")
@@ -162,7 +168,7 @@ tasks.register('thinShadowJar', ShadowJar) {
         exclude("org/apache/commons/beanutils/**")
         exclude("org/yaml/snakeyaml/**")
         exclude("javassist/**")
-        exclude("io/openlineage/sql/libopenlineage_sql_java_arm64.dylib")
+
         exclude("io/micrometer/**")
         exclude("mozilla/**")
         exclude("org/publicsuffix/**")
@@ -183,20 +189,20 @@ tasks.register('thinShadowJar', ShadowJar) {
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            groupId = "io.openlineage"
-            artifactId = "openlineage-spark_${scala}"
-
-            artifact(tasks.shadowJar) {
-                classifier = 'uber' // No classifier for the uber JAR
-            }
+            groupId = "nubank"
+            artifactId = "nu-openlineage-spark_${scala}"
 
             artifact(tasks.thinShadowJar) {
                 classifier = ""
             }
 
+            artifact(tasks.shadowJar) {
+                classifier = 'uber' // No classifier for the uber JAR
+            }
+
             pom {
-                name = "openlineage-spark_${scala}"
-                description = "OpenLineage Spark integration for Scala binary version ${scala}"
+                name = "nu-openlineage-spark_${scala}"
+                description = "Nu OpenLineage Spark integration for Scala binary version ${scala}"
                 url = "https://github.com/nubank/NuOpenLineage"
                 licenses {
                     license {
@@ -234,24 +240,6 @@ publishing {
                 "version": project.property("version")
         ]
     }
-}
-
-
-nexusPublishing {
-    repositories {
-        sonatype {
-            username = System.getenv('RELEASE_USERNAME')
-            password = System.getenv('RELEASE_PASSWORD')
-        }
-    }
-}
-
-signing {
-    required { isReleaseVersion }
-    def signingKey = findProperty("signingKey")
-    def signingPassword = findProperty("signingPassword")
-    useInMemoryPgpKeys(signingKey, signingPassword)
-    sign publishing.publications.mavenJava
 }
 
 //This line makes sure ./gradlew publishToMavenLocal also builds the thinShadowJar
