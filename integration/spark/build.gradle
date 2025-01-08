@@ -80,77 +80,8 @@ tasks.withType(GenerateModuleMetadata.class).configureEach {
     enabled = false
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            groupId = "io.openlineage"
-            artifactId = "openlineage-spark_${scala}"
-
-            from components.java
-
-            artifact sourceJar
-            artifact javadocJar
-
-            pom {
-                name = "openlineage-spark_${scala}"
-                description = "OpenLineage Spark integration for Scala binary version ${scala}"
-                url = "https://github.com/OpenLineage/OpenLineage"
-                licenses {
-                    license {
-                        name = "The Apache License, Version 2.0"
-                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
-                    }
-                }
-                developers {
-                    developer {
-                        id = "openlineage"
-                        name = "OpenLineage Project"
-                    }
-                }
-                scm {
-                    connection = "scm:git:git://github.com/OpenLineage/OpenLineage.git"
-                    developerConnection = "scm:git:ssh://github.com:OpenLineage/OpenLineage.git"
-                    url = "https://github.com/OpenLineage/OpenLineage"
-                }
-            }
-
-            pom.withXml {
-                asNode().dependencies."*".findAll() {
-                    it.groupId.text() == "spark"
-                }.each() {
-                    it.parent().remove(it)
-                }
-            }
-        }
-    }
-
-    processResources {
-        filter ReplaceTokens, tokens: [
-                "version": project.property("version")
-        ]
-    }
-}
-
-
-nexusPublishing {
-    repositories {
-        sonatype {
-            username = System.getenv('RELEASE_USERNAME')
-            password = System.getenv('RELEASE_PASSWORD')
-        }
-    }
-}
-
-signing {
-    required { isReleaseVersion }
-    def signingKey = findProperty("signingKey")
-    def signingPassword = findProperty("signingPassword")
-    useInMemoryPgpKeys(signingKey, signingPassword)
-    sign publishing.publications.mavenJava
-}
-
 shadowJar {
-    archiveClassifier = ""
+    archiveClassifier = "uber"
 
     minimize() {
         exclude(project(path: ":app"))
@@ -198,7 +129,7 @@ shadowJar {
 //When pulling updates from upstream, we must make sure to replicate the changes from shadowJar task in the following block
 tasks.register('thinShadowJar', ShadowJar) {
     configurations = [project.configurations.runtimeClasspath]
-    archiveClassifier = "thin"
+    archiveClassifier = ""
 
     minimize() {
         // Excluded projects should match the same as in shadowJar task
@@ -247,6 +178,80 @@ tasks.register('thinShadowJar', ShadowJar) {
         )
     }
     zip64 true
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = "io.openlineage"
+            artifactId = "openlineage-spark_${scala}"
+
+            artifact(tasks.shadowJar) {
+                classifier = 'uber' // No classifier for the uber JAR
+            }
+
+            artifact(tasks.thinShadowJar) {
+                classifier = ""
+            }
+
+            pom {
+                name = "openlineage-spark_${scala}"
+                description = "OpenLineage Spark integration for Scala binary version ${scala}"
+                url = "https://github.com/nubank/NuOpenLineage"
+                licenses {
+                    license {
+                        name = "The Apache License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "data-governance-discovery"
+                        name = "Data Governance & Discovery Team"
+                    }
+                }
+                scm {
+                    connection = "scm:git:git://github.com/nubank/NuOpenLineage.git"
+                    developerConnection = "scm:git:ssh://github.com:nubank/NuOpenLineage.git"
+                    url = "https://github.com/nubank/NuOpenLineage"
+                }
+            }
+
+            pom.withXml {
+                asNode().dependencies."*".findAll() {
+                    it.groupId.text() == "spark"
+                }.each() {
+                    it.parent().remove(it)
+                }
+            }
+        }
+
+
+    }
+
+    processResources {
+        filter ReplaceTokens, tokens: [
+                "version": project.property("version")
+        ]
+    }
+}
+
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            username = System.getenv('RELEASE_USERNAME')
+            password = System.getenv('RELEASE_PASSWORD')
+        }
+    }
+}
+
+signing {
+    required { isReleaseVersion }
+    def signingKey = findProperty("signingKey")
+    def signingPassword = findProperty("signingPassword")
+    useInMemoryPgpKeys(signingKey, signingPassword)
+    sign publishing.publications.mavenJava
 }
 
 //This line makes sure ./gradlew publishToMavenLocal also builds the thinShadowJar
