@@ -141,6 +141,7 @@ publishing {
 
             artifact sourceJar
             artifact javadocJar
+            artifact shadowJarWithoutExternalDependencies
 
             pom {
                 name = "openlineage-spark_${scala}"
