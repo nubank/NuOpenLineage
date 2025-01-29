@@ -169,10 +169,11 @@ publishing {
                 }
             }
 
-            pom.withXml {
-                Node pomNode = asNode()
-                pomNode.remove(pomNode.get("dependencies"))
-            }
+            // -------- removing the following section to enable the dependencies within the pom file --------
+            // pom.withXml {
+            //     Node pomNode = asNode()
+            //     pomNode.remove(pomNode.get("dependencies"))
+            // }
         }
     }
 
