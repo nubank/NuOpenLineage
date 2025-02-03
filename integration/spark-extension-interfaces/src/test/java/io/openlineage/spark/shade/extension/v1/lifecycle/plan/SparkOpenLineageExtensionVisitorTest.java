@@ -31,97 +31,97 @@ class SparkOpenLineageExtensionVisitorTest {
   SparkOpenLineageExtensionVisitor visitor = new SparkOpenLineageExtensionVisitor();
   Map<String, String> options = Collections.singletonMap("path", "some-path");
 
-//   @Test
-//   void testDatasetIdentifierReturnedByLineageRelationProvider() {
-//     // given
-//     LineageRelationProvider provider =
-//         (sparkListenerEventName, openLineage, sqlContext, parameters) ->
-//             new DatasetIdentifier("name", "namespace")
-//                 .withSymlink(
-//                     new DatasetIdentifier.Symlink(
-//                         "name1", "namespace1", DatasetIdentifier.SymlinkType.TABLE));
-//     assertThat(visitor.isDefinedAt(provider)).isTrue();
-//     Map<String, Object> result =
-//         visitor.apply(provider, event.getClass().getName(), sqlContext, options);
+  @Test
+  void testDatasetIdentifierReturnedByLineageRelationProvider() {
+    // given
+    LineageRelationProvider provider =
+        (sparkListenerEventName, openLineage, sqlContext, parameters) ->
+            new DatasetIdentifier("name", "namespace")
+                .withSymlink(
+                    new DatasetIdentifier.Symlink(
+                        "name1", "namespace1", DatasetIdentifier.SymlinkType.TABLE));
+    assertThat(visitor.isDefinedAt(provider)).isTrue();
+    Map<String, Object> result =
+        visitor.apply(provider, event.getClass().getName(), sqlContext, options);
 
-//     // then
-//     assertThat(result).extracting("name").isEqualTo("name");
-//     assertThat(result).extracting("namespace").isEqualTo("namespace");
-//     assertThat(result)
-//         .extracting("symlinks")
-//         .isEqualTo(
-//             list(
-//                 ImmutableMap.builder()
-//                     .put("name", "name1")
-//                     .put("namespace", "namespace1")
-//                     .put("type", "TABLE")
-//                     .build()));
-//   }
+    // then
+    assertThat(result).extracting("name").isEqualTo("name");
+    assertThat(result).extracting("namespace").isEqualTo("namespace");
+    assertThat(result)
+        .extracting("symlinks")
+        .isEqualTo(
+            list(
+                ImmutableMap.builder()
+                    .put("name", "name1")
+                    .put("namespace", "namespace1")
+                    .put("type", "TABLE")
+                    .build()));
+  }
 
-//   @Test
-//   void testDatasetIdentifierReturnedByLineageRelation() {
-//     // given
-//     LineageRelation lineageRelation =
-//         (sparkListenerEventName, openLineage) ->
-//             new DatasetIdentifier("name", "namespace")
-//                 .withSymlink(
-//                     new DatasetIdentifier.Symlink(
-//                         "name1", "namespace1", DatasetIdentifier.SymlinkType.TABLE));
+  @Test
+  void testDatasetIdentifierReturnedByLineageRelation() {
+    // given
+    LineageRelation lineageRelation =
+        (sparkListenerEventName, openLineage) ->
+            new DatasetIdentifier("name", "namespace")
+                .withSymlink(
+                    new DatasetIdentifier.Symlink(
+                        "name1", "namespace1", DatasetIdentifier.SymlinkType.TABLE));
 
-//     // when
-//     assertThat(visitor.isDefinedAt(lineageRelation)).isTrue();
-//     Map<String, Object> result = visitor.apply(lineageRelation, event.getClass().getName());
+    // when
+    assertThat(visitor.isDefinedAt(lineageRelation)).isTrue();
+    Map<String, Object> result = visitor.apply(lineageRelation, event.getClass().getName());
 
-//     // then
-//     assertThat(result).extracting("name").isEqualTo("name");
-//     assertThat(result).extracting("namespace").isEqualTo("namespace");
-//     assertThat(result)
-//         .extracting("symlinks")
-//         .isEqualTo(
-//             list(
-//                 ImmutableMap.builder()
-//                     .put("name", "name1")
-//                     .put("namespace", "namespace1")
-//                     .put("type", "TABLE")
-//                     .build()));
-//   }
+    // then
+    assertThat(result).extracting("name").isEqualTo("name");
+    assertThat(result).extracting("namespace").isEqualTo("namespace");
+    assertThat(result)
+        .extracting("symlinks")
+        .isEqualTo(
+            list(
+                ImmutableMap.builder()
+                    .put("name", "name1")
+                    .put("namespace", "namespace1")
+                    .put("type", "TABLE")
+                    .build()));
+  }
 
-//   @Test
-//   void testFacetsReturnedByInputLineageNodeWithIdentifier() {
-//     // given
-//     InputLineageNode inputLineageNode =
-//         (sparkListenerEventName, openLineage) ->
-//             Collections.singletonList(
-//                 new InputDatasetWithIdentifier(
-//                     new DatasetIdentifier("a", "b"),
-//                     openLineage.newDatasetFacetsBuilder(),
-//                     openLineage.newInputDatasetInputFacetsBuilder()));
+  @Test
+  void testFacetsReturnedByInputLineageNodeWithIdentifier() {
+    // given
+    InputLineageNode inputLineageNode =
+        (sparkListenerEventName, openLineage) ->
+            Collections.singletonList(
+                new InputDatasetWithIdentifier(
+                    new DatasetIdentifier("a", "b"),
+                    openLineage.newDatasetFacetsBuilder(),
+                    openLineage.newInputDatasetInputFacetsBuilder()));
 
-//     // when
-//     assertThat(visitor.isDefinedAt(inputLineageNode)).isTrue();
-//     Map<String, Object> result = visitor.apply(inputLineageNode, event.getClass().getName());
+    // when
+    assertThat(visitor.isDefinedAt(inputLineageNode)).isTrue();
+    Map<String, Object> result = visitor.apply(inputLineageNode, event.getClass().getName());
 
-//     // then
-//     assertThat(result).extracting("delegateNodes").isEqualTo(list());
-//   }
+    // then
+    assertThat(result).extracting("delegateNodes").isEqualTo(list());
+  }
 
-//   @Test
-//   void testFacetsReturnedByInputLineageNodeWithDelegates() {
-//     // given
-//     LogicalPlan delegate = mock(LogicalPlan.class);
-//     InputLineageNode inputLineageNode =
-//         (sparkListenerEventName, openLineage) ->
-//             Collections.singletonList(
-//                 new InputDatasetWithDelegate(
-//                     delegate,
-//                     openLineage.newDatasetFacetsBuilder(),
-//                     openLineage.newInputDatasetInputFacetsBuilder()));
+  @Test
+  void testFacetsReturnedByInputLineageNodeWithDelegates() {
+    // given
+    LogicalPlan delegate = mock(LogicalPlan.class);
+    InputLineageNode inputLineageNode =
+        (sparkListenerEventName, openLineage) ->
+            Collections.singletonList(
+                new InputDatasetWithDelegate(
+                    delegate,
+                    openLineage.newDatasetFacetsBuilder(),
+                    openLineage.newInputDatasetInputFacetsBuilder()));
 
-//     // when
-//     assertThat(visitor.isDefinedAt(inputLineageNode)).isTrue();
-//     Map<String, Object> result = visitor.apply(inputLineageNode, event.getClass().getName());
+    // when
+    assertThat(visitor.isDefinedAt(inputLineageNode)).isTrue();
+    Map<String, Object> result = visitor.apply(inputLineageNode, event.getClass().getName());
 
-//     // then
-//     assertThat(result).extracting("delegateNodes").isEqualTo(list(delegate));
-//   }
+    // then
+    assertThat(result).extracting("delegateNodes").isEqualTo(list(delegate));
+  }
 }
