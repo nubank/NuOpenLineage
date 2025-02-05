@@ -26,8 +26,7 @@ public class EventFilterUtils {
             new DeltaEventFilter(context),
             new DatabricksEventFilter(context),
             new SparkNodesFilter(context),
-            new CreateViewFilter(context),
-            new AdaptivePlanEventFilter(context))
+            new CreateViewFilter(context))
         .anyMatch(filter -> filter.isDisabled(event.getClass().cast(event)));
   }
 
