@@ -101,7 +101,6 @@ class SparkApplicationExecutionContext implements ExecutionContext {
 
   @Override
   public void end(SparkListenerApplicationEnd applicationEnd) {
-    log.info("SparkListenerApplicationEnd: {}", applicationEnd.toString());
     String applicationId =
         olContext.getSparkContext().map(context -> context.applicationId()).orElse(null);
     log.debug("SparkListenerApplicationEnd - applicationId: {}", applicationId);

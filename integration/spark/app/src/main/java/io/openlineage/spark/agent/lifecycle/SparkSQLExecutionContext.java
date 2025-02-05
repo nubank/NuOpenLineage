@@ -79,6 +79,9 @@ class SparkSQLExecutionContext implements ExecutionContext {
 
   @Override
   public void start(SparkListenerSQLExecutionStart startEvent) {
+    log.info("SparkListenerSQLExecutionStart - executionId: {}", startEvent.executionId());
+    log.info("SparkListenerSQLExecutionStart - event: {}", startEvent.toString());
+    log.info("SparkListenerSQLExecutionStart - event.sparkPlanInfo: {}", startEvent.sparkPlanInfo());
     if (log.isDebugEnabled()) {
       log.debug("SparkListenerSQLExecutionStart - executionId: {}", startEvent.executionId());
     }
@@ -110,12 +113,14 @@ class SparkSQLExecutionContext implements ExecutionContext {
                 .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
                 .build());
 
-    log.debug("Posting event for start {}: {}", executionId, event);
+    log.info("Posting event for start {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
   public void end(SparkListenerSQLExecutionEnd endEvent) {
+    log.info("SparkListenerSQLExecutionEnd - executionId: {}", endEvent.executionId());
+    log.info("SparkListenerSQLExecutionEnd - event: {}", endEvent.toString());
     if (log.isDebugEnabled()) {
       log.debug("SparkListenerSQLExecutionEnd - executionId: {}", endEvent.executionId());
     }
@@ -160,6 +165,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (log.isDebugEnabled()) {
       log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
+    log.info("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     NuEventEmitter.emit(event, eventEmitter);
   }
 
