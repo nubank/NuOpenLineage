@@ -28,8 +28,7 @@ public class NuEventEmitter {
     private static final Set<String> WANTED_EVENT_NAME_SUBSTRINGS = new HashSet<>(
             Arrays.asList(
                     ".execute_insert_into_hadoop_fs_relation_command.",
-                    ".adaptive_spark_plan.",
-                    "."
+                    ".adaptive_spark_plan."
             )
     );
 

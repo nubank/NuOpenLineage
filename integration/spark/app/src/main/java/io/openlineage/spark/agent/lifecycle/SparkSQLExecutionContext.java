@@ -25,12 +25,16 @@ import io.openlineage.spark.api.naming.JobNameBuilder;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import lombok.extern.slf4j.Slf4j;
+import scala.Tuple2;
+
 import org.apache.spark.scheduler.ActiveJob;
 import org.apache.spark.scheduler.JobFailed;
 import org.apache.spark.scheduler.SparkListenerApplicationEnd;
@@ -80,8 +84,12 @@ class SparkSQLExecutionContext implements ExecutionContext {
   @Override
   public void start(SparkListenerSQLExecutionStart startEvent) {
     log.info("SparkListenerSQLExecutionStart - executionId: {}", startEvent.executionId());
+    Tuple2<String,String>[] allConfs = olContext.getSparkContext().get().getConf().getAll();
+    for (Tuple2<String,String> conf : allConfs) {
+      log.info("SparkListenerSQLExecutionStart - conf: {}", conf.toString());
+    }
+    log.info("SparkListenerSQLExecutionStart - mapOfConfsFromContext: {}", olContext.getSparkSession().get().conf().getAll().toString());
     log.info("SparkListenerSQLExecutionStart - event: {}", startEvent.toString());
-    log.info("SparkListenerSQLExecutionStart - event.sparkPlanInfo: {}", startEvent.sparkPlanInfo());
     if (log.isDebugEnabled()) {
       log.debug("SparkListenerSQLExecutionStart - executionId: {}", startEvent.executionId());
     }
@@ -120,7 +128,6 @@ class SparkSQLExecutionContext implements ExecutionContext {
   @Override
   public void end(SparkListenerSQLExecutionEnd endEvent) {
     log.info("SparkListenerSQLExecutionEnd - executionId: {}", endEvent.executionId());
-    log.info("SparkListenerSQLExecutionEnd - event: {}", endEvent.toString());
     if (log.isDebugEnabled()) {
       log.debug("SparkListenerSQLExecutionEnd - executionId: {}", endEvent.executionId());
     }
