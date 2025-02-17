@@ -85,7 +85,9 @@ public class ContextFactory {
   public Optional<ExecutionContext> createSparkSQLExecutionContext(long executionId) {
     QueryExecution queryExecution = SQLExecution.getQueryExecution(executionId);
     if (queryExecution == null) {
-      log.error("Query execution is null: can't emit event for executionId {}", executionId);
+      // We changed this log level from error to warn so it doesn't  mix with other MR and Itapu error logs.
+      // We should investigate if we can act upon this issue. If not, we should change this to debug
+      log.warn("Query execution is null: can't emit event for executionId {}", executionId);
       return Optional.empty();
     }
     SparkSession sparkSession = queryExecution.sparkSession();
