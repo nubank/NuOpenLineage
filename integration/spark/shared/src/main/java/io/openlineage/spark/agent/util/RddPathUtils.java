@@ -134,7 +134,7 @@ public class RddPathUtils {
                   })
               .filter(Objects::nonNull);
         } else {
-          log.warn("Cannot extract path from ParallelCollectionRDD {}", data);
+          log.warn("Cannot extract path from ParallelCollectionRDD");
         }
       } catch (IllegalAccessException | IllegalArgumentException e) {
         log.warn("Cannot read data field from ParallelCollectionRDD {}", rdd);
