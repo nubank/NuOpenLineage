@@ -4,12 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
+import scala.collection.JavaConverters;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class NuFacetsUtils {
@@ -29,5 +29,15 @@ public class NuFacetsUtils {
             log.warn("Property {} not found in the context", key);
             return null;
         }
+    }
+
+    public static Map<String, String> getConfigValues(String prefix, RuntimeConfig configs) {
+        return JavaConverters.mapAsJavaMap(configs.getAll()).entrySet().stream()
+                .filter(entry -> entry.getKey().startsWith(prefix))
+                .map(entry -> {
+                    String datasetName = entry.getKey().replace(prefix, "");
+                    String datasetPath = entry.getValue();
+                    return new AbstractMap.SimpleEntry<>(datasetName, datasetPath);
+                }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }
