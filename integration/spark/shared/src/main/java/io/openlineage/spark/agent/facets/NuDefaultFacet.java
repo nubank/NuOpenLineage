@@ -24,7 +24,7 @@ import static io.openlineage.spark.agent.util.NuFacetsUtils.parseJsonToMap;
 /** Captures information related to the Apache Spark job. */
 @Getter
 @Slf4j
-public class NuFacet extends OpenLineage.DefaultRunFacet {
+public class NuDefaultFacet extends NuRunFacet {
 
   @JsonProperty("jobNurn")
   private String jobNurn;
@@ -50,12 +50,9 @@ public class NuFacet extends OpenLineage.DefaultRunFacet {
     }
   }
 
-  public NuFacet(@NonNull OpenLineageContext olContext) {
+  public NuDefaultFacet(@NonNull SparkSession sparkSession) {
     super(Versions.OPEN_LINEAGE_PRODUCER_URI);
-    if (olContext.getSparkSession().isPresent()) {
-      SparkSession sparkSession = olContext.getSparkSession().get();
-      this.jobNurn = getJobNurn(sparkSession);
-      this.resolvedInputs = getResolvedInputs(sparkSession);
-    }
+    this.jobNurn = getJobNurn(sparkSession);
+    this.resolvedInputs = getResolvedInputs(sparkSession);
   }
 }
