@@ -92,16 +92,14 @@ class NuFacetBuilderTest {
         });
 
         Map<String, String> expectedResolvedInputs = new HashMap<>();
-        expectedResolvedInputs.put("inputName_1", "s3a://path/to/inputName_1");
-        expectedResolvedInputs.put("inputName_2", "s3a://path/to/inputName_2");
-        expectedResolvedInputs.put("inputName_3", "s3a://path/to/inputName_3");
-
+        expectedResolvedInputs.put("s3a://path/to/inputName_1", "inputName_1");
+        expectedResolvedInputs.put("s3a://path/to/inputName_2", "inputName_2");
+        expectedResolvedInputs.put("s3a://path/to/inputName_3", "inputName_3");
 
         Map<String, String> expectedResolvedOutputs = new HashMap<>();
-        expectedResolvedOutputs.put("outputName_1", "s3a://path/to/outputName_1");
-        expectedResolvedOutputs.put("outputName_2", "s3a://path/to/outputName_2");
-        expectedResolvedOutputs.put("outputName_3", "s3a://path/to/outputName_3");
-
+        expectedResolvedOutputs.put("s3a://path/to/outputName_1", "outputName_1");
+        expectedResolvedOutputs.put("s3a://path/to/outputName_2", "outputName_2");
+        expectedResolvedOutputs.put("s3a://path/to/outputName_3", "outputName_3");
 
         NuFacetBuilder builder = new NuFacetBuilder(openLineageContext);
         Map<String, RunFacet> runFacetMap = new HashMap<>();

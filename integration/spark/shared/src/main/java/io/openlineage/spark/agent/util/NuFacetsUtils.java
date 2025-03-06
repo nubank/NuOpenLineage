@@ -40,4 +40,9 @@ public class NuFacetsUtils {
                     return new AbstractMap.SimpleEntry<>(datasetName, datasetPath);
                 }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
+
+    public static Map<String, String> keyToValue(Map<String, String> map) {
+        return map.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+    }
 }

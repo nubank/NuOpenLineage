@@ -11,6 +11,7 @@ import org.apache.spark.sql.SparkSession;
 import java.util.Map;
 
 import static io.openlineage.spark.agent.util.NuFacetsUtils.getConfigValues;
+import static io.openlineage.spark.agent.util.NuFacetsUtils.keyToValue;
 
 @Getter
 @Slf4j
@@ -27,7 +28,7 @@ public class NuItaipuFacet extends NuRunFacet{
 
     public NuItaipuFacet(@NonNull SparkSession sparkSession) {
         super(Versions.OPEN_LINEAGE_PRODUCER_URI);
-        this.resolvedInputs = getConfigValues(RESOLVED_INPUTS_PREFIX, sparkSession.conf());
-        this.resolvedOutputs = getConfigValues(RESOLVED_OUTPUTS_PREFIX, sparkSession.conf());
+        this.resolvedInputs = keyToValue(getConfigValues(RESOLVED_INPUTS_PREFIX, sparkSession.conf()));
+        this.resolvedOutputs = keyToValue(getConfigValues(RESOLVED_OUTPUTS_PREFIX, sparkSession.conf()));
     }
 }
