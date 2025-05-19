@@ -77,7 +77,7 @@ public final class OpenLineageClient implements AutoCloseable {
     }
     if (circuitBreaker.isPresent() && circuitBreaker.get().currentState().isClosed()) {
       engagedCircuitBreaker.set(1);
-      log.warn("OpenLineageClient disabled with circuit breaker");
+      log.warn("NuOpenLineageLog: OpenLineageClient: emit: OpenLineageClient disabled with circuit breaker");
       return;
     } else {
       engagedCircuitBreaker.set(0);
