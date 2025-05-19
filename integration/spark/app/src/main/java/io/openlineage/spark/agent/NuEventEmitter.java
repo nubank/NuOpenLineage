@@ -35,7 +35,7 @@ public class NuEventEmitter {
     private static Boolean isPermittedJobType(RunEvent event) {
         String jobType = event.getJob().getFacets().getJobType().getJobType();
         if (WANTED_JOB_TYPES.stream().noneMatch(jobType::equals)) {
-            log.debug("OpenLineage event with job type {} has no lineage value and should not be emitted", jobType);
+            log.info("NuOpenLineageLog: OpenLineage event with job type {} has no lineage value and should not be emitted", jobType);
             return false;
         }
         return true;
@@ -43,7 +43,7 @@ public class NuEventEmitter {
 
     private static Boolean isPermitedEventType(RunEvent event) {
         if (RUNNING.equals(event.getEventType())) {
-            log.debug("OpenLineage event is {} and should not be emitted", RUNNING);
+            log.info("NuOpenLineageLog: OpenLineage event is {} and should not be emitted", RUNNING);
             return false;
         }
         return true;
@@ -52,11 +52,11 @@ public class NuEventEmitter {
     private static Boolean isPermittedJobName(RunEvent event) {
         String jobName = event.getJob().getName();
         if (isNull(jobName)) {
-            log.debug("OpenLineage event has no job name and should not be emitted");
+            log.info("NuOpenLineageLog: OpenLineage event has no job name and should not be emitted");
             return false;
         }
         if (WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(jobName::contains)) {
-            log.debug("OpenLineage event job name {} has no permitted substring and should not be emitted", jobName);
+            log.info("NuOpenLineageLog: OpenLineage event job name {} has no permitted substring and should not be emitted", jobName);
             return false;
         }
         return true;
@@ -83,27 +83,34 @@ public class NuEventEmitter {
                     .collect(Collectors.toList())
                     .forEach(dataset -> {
                         try {
-                            log.debug("Discarding column lineage facet for dataset {} {} {}",
+                            log.info("NuOpenLineageLog: Discarding column lineage facet for dataset {} {} {}",
                                     dataset.getClass().getSimpleName(), dataset.getNamespace(), dataset.getName());
                             columnLineageFacetField.set(dataset.getFacets(), null);
                         } catch (IllegalAccessException e) {
-                            log.error("Failed to discard column lineage facet", e);
+                            log.info("NuOpenLineageLog: Failed to discard column lineage facet", e);
                         }
                     });
         } catch (NoSuchFieldException e) {
-            log.error("Failed to discard column lineage facet: columnLineage field not found at OpenLineage.DatasetFacets", e);
+            log.info("NuOpenLineageLog: Failed to discard column lineage facet: columnLineage field not found at OpenLineage.DatasetFacets", e);
         }
     }
 
     public static void emit(RunEvent event, EventEmitter eventEmitter) {
+        log.info("NuOpenLineageLog: Begin: Emitting OpenLineage event {} with job name {} and job type {}",
+                event.getEventType(), event.getJob().getName(), event.getJob().getFacets().getJobType().getJobType());
         if (!shouldEmit(event)) {
+            log.info("NuOpenLineageLog: OpenLineage event {} has no lineage value and should not be emitted", event.getEventType());
             return;
         }
 
         if (shouldDiscardColumnLineageFacet(event.getEventType())) {
+            log.info("NuOpenLineageLog: Discarding column lineage facet for event {}", event.getEventType());
             discardColumnLineageFacet(event);
         }
 
         eventEmitter.emit(event);
+
+        log.info("NuOpenLineageLog: End: Emitting OpenLineage event {} with job name {} and job type {}",
+                event.getEventType(), event.getJob().getName(), event.getJob().getFacets().getJobType().getJobType());
     }
 }

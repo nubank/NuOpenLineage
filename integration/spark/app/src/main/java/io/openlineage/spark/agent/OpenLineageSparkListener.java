@@ -111,6 +111,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
 
   /** called by the SparkListener when a spark-sql (Dataset api) execution starts */
   private void sparkSQLExecStart(SparkListenerSQLExecutionStart startEvent) {
+    log.info("NuOpenLineageLog: sparkSQLExecStart with activeJobId {}", activeJobId);
     getSparkSQLExecutionContext(startEvent.executionId())
         .ifPresent(
             context -> {
@@ -126,7 +127,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
 
   /** called by the SparkListener when a spark-sql (Dataset api) execution ends */
   private void sparkSQLExecEnd(SparkListenerSQLExecutionEnd endEvent) {
-    log.debug("sparkSQLExecEnd with activeJobId {}", activeJobId);
+    log.info("NuOpenLineageLog: sparkSQLExecEnd with activeJobId {}", activeJobId);
     ExecutionContext context = sparkSqlExecutionRegistry.remove(endEvent.executionId());
     meterRegistry.counter("openlineage.spark.event.sql.end").increment();
     if (context != null) {
@@ -157,7 +158,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
       return;
     }
     activeJobId = Optional.of(jobStart.jobId());
-    log.debug("onJobStart called {}", jobStart);
+    log.info("NuOpenLineageLog: onJobStart called {}", jobStart);
     initializeContextFactoryIfNotInitialized();
     meterRegistry.counter("openlineage.spark.event.job.start").increment();
     Optional<ActiveJob> activeJob =
@@ -218,6 +219,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
     if (isDisabled) {
       return;
     }
+    log.info("NuOpenLineageLog: onJobEnd called {}", jobEnd);
     ExecutionContext context = rddExecutionRegistry.remove(jobEnd.jobId());
     meterRegistry.counter("openlineage.spark.event.job.end").increment();
     circuitBreaker.run(
@@ -237,7 +239,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
     if (isDisabled || sparkVersion.startsWith("2")) {
       return;
     }
-    log.debug("onTaskEnd {}", taskEnd);
+    log.info("NuOpenLineageLog: onTaskEnd called {}", taskEnd);
     jobMetrics.addMetrics(taskEnd.stageId(), taskEnd.taskMetrics());
   }
 
@@ -284,6 +286,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
     if (isDisabled) {
       return;
     }
+    log.info("NuOpenLineageLog: onApplicationEnd called {}", applicationEnd);
     meterRegistry.counter("openlineage.spark.event.app.end").increment();
     meterRegistry
         .counter("openlineage.spark.event.app.end.memoryusage")
@@ -308,6 +311,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
     if (isDisabled) {
       return;
     }
+    log.info("NuOpenLineageLog: onApplicationStart called {}", applicationStart);
     initializeContextFactoryIfNotInitialized(applicationStart.appName());
     meterRegistry.counter("openlineage.spark.event.app.start").increment();
     meterRegistry
