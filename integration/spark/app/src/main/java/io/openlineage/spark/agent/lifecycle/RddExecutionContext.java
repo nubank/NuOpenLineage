@@ -11,7 +11,6 @@ import io.openlineage.client.OpenLineage;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.client.utils.UUIDUtils;
 import io.openlineage.spark.agent.EventEmitter;
-import io.openlineage.spark.agent.NuEventEmitter;
 import io.openlineage.spark.agent.OpenLineageSparkListener;
 import io.openlineage.spark.agent.facets.ErrorFacet;
 import io.openlineage.spark.agent.facets.builder.GcpJobFacetBuilder;
@@ -39,6 +38,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import nu.openlineage.spark.agent.filters.NuEventFilterUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileInputFormat;
@@ -208,12 +208,20 @@ class RddExecutionContext implements ExecutionContext {
       log.info("Output RDDs are empty: skipping sending OpenLineage event");
       return;
     }
+
+    OpenLineage.RunEvent.EventType eventType = OpenLineage.RunEvent.EventType.START;
+
+    if (NuEventFilterUtils.isDisabled(olContext, eventType, SPARK_JOB_TYPE)) {
+      log.info("NuOpenLineage received Spark event that is configured to be skipped: SparkListenerJobStart");
+      return;
+    }
+
     OpenLineage.RunEvent event =
         olContext
             .getOpenLineage()
             .newRunEventBuilder()
             .eventTime(toZonedTime(jobStart.time()))
-            .eventType(OpenLineage.RunEvent.EventType.START)
+            .eventType(eventType)
             .inputs(buildInputs(inputs))
             .outputs(buildOutputs(outputs))
             .run(
@@ -227,7 +235,7 @@ class RddExecutionContext implements ExecutionContext {
             .build();
 
     log.debug("Posting event for start {}: {}", jobStart, event);
-    NuEventEmitter.emit(event, eventEmitter);
+    eventEmitter.emit(event);
   }
 
   @Override
@@ -242,12 +250,20 @@ class RddExecutionContext implements ExecutionContext {
       log.info("Output RDDs are empty: skipping sending OpenLineage event");
       return;
     }
+
+    OpenLineage.RunEvent.EventType eventType = getEventType(jobEnd.jobResult());
+
+    if (NuEventFilterUtils.isDisabled(olContext, eventType, SPARK_JOB_TYPE)) {
+      log.info("NuOpenLineage received Spark event that is configured to be skipped: SparkListenerJobEnd");
+      return;
+    }
+
     OpenLineage.RunEvent event =
         olContext
             .getOpenLineage()
             .newRunEventBuilder()
             .eventTime(toZonedTime(jobEnd.time()))
-            .eventType(getEventType(jobEnd.jobResult()))
+            .eventType(eventType)
             .inputs(buildInputs(inputs))
             .outputs(buildOutputs(outputs))
             .run(
@@ -261,7 +277,7 @@ class RddExecutionContext implements ExecutionContext {
             .build();
 
     log.debug("Posting event for end {}: {}", jobEnd, event);
-    NuEventEmitter.emit(event, eventEmitter);
+    eventEmitter.emit(event);
   }
 
   protected OpenLineage.RunFacets buildRunFacets(ErrorFacet jobError, SparkListenerEvent event) {

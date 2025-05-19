@@ -12,12 +12,11 @@ import static io.openlineage.spark.agent.util.TimeUtils.toZonedTime;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.RunEvent;
 import io.openlineage.spark.agent.EventEmitter;
-import io.openlineage.spark.agent.NuEventEmitter;
-import io.openlineage.spark.agent.filters.EventFilterUtils;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.naming.JobNameBuilder;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import nu.openlineage.spark.agent.filters.NuEventFilterUtils;
 import org.apache.spark.scheduler.ActiveJob;
 import org.apache.spark.scheduler.SparkListenerApplicationEnd;
 import org.apache.spark.scheduler.SparkListenerApplicationStart;
@@ -73,9 +72,11 @@ class SparkApplicationExecutionContext implements ExecutionContext {
     String applicationId =
         olContext.getSparkContext().map(context -> context.applicationId()).orElse(null);
     log.debug("SparkListenerApplicationStart - applicationId: {}", applicationId);
-    if (EventFilterUtils.isDisabled(olContext, applicationStart)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerApplicationStart");
+
+    OpenLineage.RunEvent.EventType eventType = START;
+
+    if (NuEventFilterUtils.isDisabled(olContext, eventType, SPARK_JOB_TYPE)) {
+      log.info("NuOpenLineage received Spark event that is configured to be skipped: SparkListenerApplicationStart");
       return;
     }
 
@@ -88,7 +89,7 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                         .getOpenLineage()
                         .newRunEventBuilder()
                         .eventTime(toZonedTime(applicationStart.time()))
-                        .eventType(START))
+                        .eventType(eventType))
                 .jobBuilder(getJobBuilder())
                 .jobFacetsBuilder(getJobFacetsBuilder())
                 .overwriteRunId(Optional.of(olContext.getApplicationUuid()))
@@ -96,7 +97,7 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for applicationId {} start: {}", applicationId, event);
-    NuEventEmitter.emit(event, eventEmitter);
+    eventEmitter.emit(event);
   }
 
   @Override
@@ -104,9 +105,11 @@ class SparkApplicationExecutionContext implements ExecutionContext {
     String applicationId =
         olContext.getSparkContext().map(context -> context.applicationId()).orElse(null);
     log.debug("SparkListenerApplicationEnd - applicationId: {}", applicationId);
-    if (EventFilterUtils.isDisabled(olContext, applicationEnd)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerApplicationEnd");
+
+    OpenLineage.RunEvent.EventType eventType = COMPLETE;
+
+    if (NuEventFilterUtils.isDisabled(olContext, eventType, SPARK_JOB_TYPE)) {
+      log.info("NuOpenLineage received Spark event that is configured to be skipped: SparkListenerApplicationEnd");
       return;
     }
 
@@ -119,7 +122,7 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                         .getOpenLineage()
                         .newRunEventBuilder()
                         .eventTime(toZonedTime(applicationEnd.time()))
-                        .eventType(COMPLETE))
+                        .eventType(eventType))
                 .jobBuilder(getJobBuilder())
                 .jobFacetsBuilder(getJobFacetsBuilder())
                 .overwriteRunId(Optional.of(olContext.getApplicationUuid()))
@@ -127,7 +130,7 @@ class SparkApplicationExecutionContext implements ExecutionContext {
                 .build());
 
     log.debug("Posting event for applicationId {} end: {}", applicationId, event);
-    NuEventEmitter.emit(event, eventEmitter);
+    eventEmitter.emit(event);
   }
 
   private OpenLineage.ParentRunFacet buildApplicationParentFacet() {
