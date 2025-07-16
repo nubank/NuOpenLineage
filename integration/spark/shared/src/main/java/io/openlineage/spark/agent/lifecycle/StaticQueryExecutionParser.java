@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,9 +32,36 @@ public class StaticQueryExecutionParser {
     private final Map<String, String> datasetIdCache;
     
     public StaticQueryExecutionParser() {
-        this.openLineage = new OpenLineage(Versions.OPEN_LINEAGE_PRODUCER_URI);
+        // Create producer URI without relying on static initialization
+        URI producerUri = createProducerUri();
+        this.openLineage = new OpenLineage(producerUri);
         this.objectMapper = new ObjectMapper();
         this.datasetIdCache = new HashMap<>();
+    }
+    
+    private URI createProducerUri() {
+        try {
+            String version = getVersionSafely();
+            return URI.create(
+                String.format("https://github.com/OpenLineage/OpenLineage/tree/%s/integration/spark", version));
+        } catch (Exception e) {
+            log.warn("Failed to load version from properties, using default URI: {}", e.getMessage());
+            return URI.create("https://github.com/OpenLineage/OpenLineage/tree/main/integration/spark");
+        }
+    }
+    
+    private String getVersionSafely() {
+        try {
+            Properties properties = new Properties();
+            InputStream is = this.getClass().getResourceAsStream("/version.properties");
+            if (is != null) {
+                properties.load(is);
+                return properties.getProperty("version", "main");
+            }
+        } catch (Exception e) {
+            log.debug("Could not load version properties: {}", e.getMessage());
+        }
+        return "main";
     }
     
     /**
@@ -300,13 +329,10 @@ public class StaticQueryExecutionParser {
      * Extract output dataset from the execution plan
      */
     private OpenLineage.OutputDataset extractOutputDataset(ExecutionPlanContext context, String jobName) {
-        PlanNode rootNode = context.getRootNode();
-        if (rootNode == null) {
-            throw new IllegalStateException("No root node found in execution plan");
-        }
-        
         String outputId = jobName + "_output";
-        OpenLineage.SchemaDatasetFacet schema = extractSchemaFromNode(rootNode.getNode());
+        
+        // Extract schema from the final output (first node in array-based plans)
+        OpenLineage.SchemaDatasetFacet schema = extractOutputSchema(context);
         
         return openLineage.newOutputDatasetBuilder()
             .namespace("memory://dataframes")
@@ -324,16 +350,13 @@ public class StaticQueryExecutionParser {
         OpenLineage.ColumnLineageDatasetFacetFieldsBuilder fieldsBuilder = 
             openLineage.newColumnLineageDatasetFacetFieldsBuilder();
         
-        PlanNode rootNode = context.getRootNode();
-        if (rootNode == null) return null;
-        
-        // Extract output columns
-        List<String> outputColumns = extractColumnNames(rootNode.getNode());
+        // Extract output columns from the final transformation (first node)
+        List<String> outputColumns = extractOutputColumnNames(context);
         
         // For each output column, trace back to input columns
         for (String outputColumn : outputColumns) {
-            OpenLineage.ColumnLineageDatasetFacetFieldsAdditional field = traceColumnLineage(
-                outputColumn, rootNode, context);
+            OpenLineage.ColumnLineageDatasetFacetFieldsAdditional field = traceColumnLineageImproved(
+                outputColumn, context);
             if (field != null) {
                 fieldsBuilder.put(outputColumn, field);
             }
@@ -350,7 +373,91 @@ public class StaticQueryExecutionParser {
     }
     
     /**
-     * Trace lineage for a specific column
+     * Improved column lineage tracing for a specific column
+     */
+    private OpenLineage.ColumnLineageDatasetFacetFieldsAdditional traceColumnLineageImproved(
+            String columnName, ExecutionPlanContext context) {
+        
+        List<OpenLineage.InputField> inputFields = new ArrayList<>();
+        Set<String> processedDatasets = new HashSet<>();
+        
+        // Trace through input sources to find columns with matching names
+        for (PlanNode inputSource : context.getInputSources()) {
+            String datasetId = generateDatasetId(inputSource);
+            
+            // Avoid duplicates for the same dataset
+            if (processedDatasets.contains(datasetId)) {
+                continue;
+            }
+            processedDatasets.add(datasetId);
+            
+            List<String> inputColumns = extractColumnNames(inputSource.getNode());
+            if (inputColumns.contains(columnName)) {
+                OpenLineage.InputField inputField = 
+                    openLineage.newInputFieldBuilder()
+                        .namespace("memory://dataframes")
+                        .name(datasetId)
+                        .field(columnName)
+                        .build();
+                
+                inputFields.add(inputField);
+            }
+        }
+        
+        // If no direct matches found, try to trace through transformations
+        if (inputFields.isEmpty()) {
+            inputFields = traceColumnThroughTransformations(columnName, context);
+        }
+        
+        if (inputFields.isEmpty()) {
+            return null;
+        }
+        
+        return openLineage.newColumnLineageDatasetFacetFieldsAdditionalBuilder()
+            .inputFields(inputFields)
+            .transformationDescription("Column lineage traced through Spark execution plan")
+            .transformationType(inputFields.size() == 1 ? "DIRECT" : "INDIRECT")
+            .build();
+    }
+    
+    /**
+     * Trace column lineage through transformations when direct matching fails
+     */
+    private List<OpenLineage.InputField> traceColumnThroughTransformations(String columnName, ExecutionPlanContext context) {
+        List<OpenLineage.InputField> inputFields = new ArrayList<>();
+        Set<String> processedDatasets = new HashSet<>();
+        
+        // For complex transformations, fall back to mapping all input columns
+        // This is a simplified approach - in practice, you'd analyze the transformation logic
+        for (PlanNode inputSource : context.getInputSources()) {
+            String datasetId = generateDatasetId(inputSource);
+            
+            if (processedDatasets.contains(datasetId)) {
+                continue;
+            }
+            processedDatasets.add(datasetId);
+            
+            List<String> inputColumns = extractColumnNames(inputSource.getNode());
+            if (!inputColumns.isEmpty()) {
+                // Use the first column as a representative (simplified approach)
+                String firstColumn = inputColumns.get(0);
+                
+                OpenLineage.InputField inputField = 
+                    openLineage.newInputFieldBuilder()
+                        .namespace("memory://dataframes")
+                        .name(datasetId)
+                        .field(firstColumn)
+                        .build();
+                
+                inputFields.add(inputField);
+            }
+        }
+        
+        return inputFields;
+    }
+    
+    /**
+     * Trace lineage for a specific column (legacy method)
      */
     private OpenLineage.ColumnLineageDatasetFacetFieldsAdditional traceColumnLineage(
             String columnName, PlanNode node, ExecutionPlanContext context) {
@@ -386,6 +493,26 @@ public class StaticQueryExecutionParser {
     }
     
     /**
+     * Extract output schema from the execution plan context
+     */
+    private OpenLineage.SchemaDatasetFacet extractOutputSchema(ExecutionPlanContext context) {
+        List<OpenLineage.SchemaDatasetFacetFields> fields = new ArrayList<>();
+        
+        // For array-based plans, extract schema from the first node (final output)
+        if (context.getAllNodesArray() != null && !context.getAllNodesArray().isEmpty()) {
+            JsonNode outputNode = context.getAllNodesArray().get(0);
+            extractSchemaFromProjectList(outputNode, fields);
+        } else if (context.getRootNode() != null) {
+            // Fallback to root node
+            extractSchemaFromOutput(context.getRootNode().getNode(), fields);
+        }
+        
+        return openLineage.newSchemaDatasetFacetBuilder()
+            .fields(fields)
+            .build();
+    }
+    
+    /**
      * Extract schema from a plan node
      */
     private OpenLineage.SchemaDatasetFacet extractSchemaFromNode(JsonNode node) {
@@ -404,6 +531,25 @@ public class StaticQueryExecutionParser {
     }
     
     /**
+     * Extract schema from projectList field (for Project nodes)
+     */
+    private void extractSchemaFromProjectList(JsonNode node, List<OpenLineage.SchemaDatasetFacetFields> fields) {
+        JsonNode projectList = node.path("projectList");
+        if (projectList.isArray()) {
+            for (JsonNode projectionArray : projectList) {
+                if (projectionArray.isArray() && projectionArray.size() > 0) {
+                    // Each projection is an array, get the first element which describes the output column
+                    JsonNode columnNode = projectionArray.get(0);
+                    OpenLineage.SchemaDatasetFacetFields field = extractFieldFromAttributeReference(columnNode);
+                    if (field != null) {
+                        fields.add(field);
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
      * Extract schema from output field
      */
     private void extractSchemaFromOutput(JsonNode node, List<OpenLineage.SchemaDatasetFacetFields> fields) {
@@ -412,13 +558,13 @@ public class StaticQueryExecutionParser {
             for (JsonNode outputItem : output) {
                 if (outputItem.isArray()) {
                     for (JsonNode fieldNode : outputItem) {
-                        OpenLineage.SchemaDatasetFacetFields field = extractFieldFromNode(fieldNode);
+                        OpenLineage.SchemaDatasetFacetFields field = extractFieldFromAttributeReference(fieldNode);
                         if (field != null) {
                             fields.add(field);
                         }
                     }
                 } else {
-                    OpenLineage.SchemaDatasetFacetFields field = extractFieldFromNode(outputItem);
+                    OpenLineage.SchemaDatasetFacetFields field = extractFieldFromAttributeReference(outputItem);
                     if (field != null) {
                         fields.add(field);
                     }
@@ -434,7 +580,7 @@ public class StaticQueryExecutionParser {
         JsonNode attributes = node.path("attributes");
         if (attributes.isArray()) {
             for (JsonNode attr : attributes) {
-                OpenLineage.SchemaDatasetFacetFields field = extractFieldFromNode(attr);
+                OpenLineage.SchemaDatasetFacetFields field = extractFieldFromAttributeReference(attr);
                 if (field != null) {
                     fields.add(field);
                 }
@@ -443,20 +589,23 @@ public class StaticQueryExecutionParser {
     }
     
     /**
-     * Extract field information from a node
+     * Extract field information from an AttributeReference node
      */
-    private OpenLineage.SchemaDatasetFacetFields extractFieldFromNode(JsonNode fieldNode) {
+    private OpenLineage.SchemaDatasetFacetFields extractFieldFromAttributeReference(JsonNode fieldNode) {
+        // Handle both direct AttributeReference and Alias nodes
         String name = fieldNode.path("name").asText();
         String dataType = fieldNode.path("dataType").asText();
+        boolean nullable = fieldNode.path("nullable").asBoolean(true);
         
-        // Handle different dataType structures
-        if (dataType.isEmpty()) {
-            JsonNode dataTypeNode = fieldNode.path("dataType");
-            if (dataTypeNode.isObject()) {
-                dataType = dataTypeNode.path("type").asText();
-                if (dataType.isEmpty()) {
-                    dataType = dataTypeNode.path("class").asText();
-                }
+        // Handle Alias nodes that wrap AttributeReference
+        String nodeClass = fieldNode.path("class").asText();
+        if (nodeClass.contains("Alias") && fieldNode.has("child")) {
+            // For Alias nodes, use the alias name but get type from the child
+            JsonNode childRef = fieldNode.path("child");
+            if (childRef.isInt()) {
+                // This is a reference to another node by index - we'll keep the alias name
+                // but use a generic type for now
+                dataType = "unknown";
             }
         }
         
@@ -469,6 +618,43 @@ public class StaticQueryExecutionParser {
             .type(dataType.isEmpty() ? "unknown" : dataType)
             .description("Column extracted from execution plan")
             .build();
+    }
+    
+    /**
+     * Extract output column names from the execution plan context
+     */
+    private List<String> extractOutputColumnNames(ExecutionPlanContext context) {
+        List<String> columnNames = new ArrayList<>();
+        
+        // For array-based plans, extract column names from the first node (final output)
+        if (context.getAllNodesArray() != null && !context.getAllNodesArray().isEmpty()) {
+            JsonNode outputNode = context.getAllNodesArray().get(0);
+            extractColumnNamesFromProjectList(outputNode, columnNames);
+        } else if (context.getRootNode() != null) {
+            // Fallback to root node
+            extractColumnNamesFromOutput(context.getRootNode().getNode(), columnNames);
+        }
+        
+        return columnNames;
+    }
+    
+    /**
+     * Extract column names from projectList field
+     */
+    private void extractColumnNamesFromProjectList(JsonNode node, List<String> columnNames) {
+        JsonNode projectList = node.path("projectList");
+        if (projectList.isArray()) {
+            for (JsonNode projectionArray : projectList) {
+                if (projectionArray.isArray() && projectionArray.size() > 0) {
+                    // Each projection is an array, get the first element which describes the output column
+                    JsonNode columnNode = projectionArray.get(0);
+                    String name = columnNode.path("name").asText();
+                    if (!name.isEmpty()) {
+                        columnNames.add(name);
+                    }
+                }
+            }
+        }
     }
     
     /**

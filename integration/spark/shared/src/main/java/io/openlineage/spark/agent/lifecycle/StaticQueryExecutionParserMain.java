@@ -6,9 +6,9 @@
 package io.openlineage.spark.agent.lifecycle;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.util.StdDateFormat;
 import io.openlineage.client.OpenLineage;
-import io.openlineage.client.OpenLineageClient;
-import io.openlineage.client.transports.ConsoleTransport;
 import java.io.File;
 import java.net.URI;
 import java.util.Arrays;
@@ -50,19 +50,22 @@ public class StaticQueryExecutionParserMain {
             log.info("Processing file: {}", filePath);
             
             StaticQueryExecutionParser parser = new StaticQueryExecutionParser();
-            OpenLineageClient client = createConsoleClient();
             
             OpenLineage.RunEvent event = parser.parseExecutionPlanFile(filePath);
             
-            // Print the event as JSON
-            ObjectMapper mapper = new ObjectMapper();
-            String eventJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(event);
-            
+            // Print the event details instead of JSON serialization (to avoid ZonedDateTime issues)
             log.info("Generated OpenLineage Event:");
-            System.out.println(eventJson);
+            printEventDetails(event);
             
-            // Emit the event
-            parser.emitEvent(event, client);
+            // Create a simplified JSON representation
+            System.out.println(createSimpleEventJson(event));
+            
+            // Print event details
+            printEventDetails(event);
+            
+            // Validate event
+            boolean isValid = validateEvent(event);
+            log.info("Event validation: {}", isValid ? "PASSED" : "FAILED");
             
         } catch (Exception e) {
             log.error("Error processing file: {}", filePath, e);
@@ -105,14 +108,7 @@ public class StaticQueryExecutionParserMain {
         }
     }
     
-    /**
-     * Create an OpenLineage client with console transport for demonstration
-     */
-    private OpenLineageClient createConsoleClient() {
-        return OpenLineageClient.builder()
-            .transport(new ConsoleTransport())
-            .build();
-    }
+
     
     /**
      * Demonstrate parsing a query execution plan programmatically
@@ -183,6 +179,52 @@ public class StaticQueryExecutionParserMain {
         }
     }
     
+    /**
+     * Create a simplified JSON representation of the event
+     */
+    private String createSimpleEventJson(OpenLineage.RunEvent event) {
+        try {
+            StringBuilder json = new StringBuilder();
+            json.append("{\n");
+            json.append("  \"eventType\": \"").append(event.getEventType()).append("\",\n");
+            json.append("  \"eventTime\": \"").append(event.getEventTime()).append("\",\n");
+            json.append("  \"producer\": \"").append(event.getProducer()).append("\",\n");
+            json.append("  \"job\": {\n");
+            json.append("    \"name\": \"").append(event.getJob().getName()).append("\",\n");
+            json.append("    \"namespace\": \"").append(event.getJob().getNamespace()).append("\"\n");
+            json.append("  },\n");
+            json.append("  \"run\": {\n");
+            json.append("    \"runId\": \"").append(event.getRun().getRunId()).append("\"\n");
+            json.append("  },\n");
+            json.append("  \"inputs\": [\n");
+            for (int i = 0; i < event.getInputs().size(); i++) {
+                OpenLineage.InputDataset input = event.getInputs().get(i);
+                json.append("    {\n");
+                json.append("      \"name\": \"").append(input.getName()).append("\",\n");
+                json.append("      \"namespace\": \"").append(input.getNamespace()).append("\"\n");
+                json.append("    }");
+                if (i < event.getInputs().size() - 1) json.append(",");
+                json.append("\n");
+            }
+            json.append("  ],\n");
+            json.append("  \"outputs\": [\n");
+            for (int i = 0; i < event.getOutputs().size(); i++) {
+                OpenLineage.OutputDataset output = event.getOutputs().get(i);
+                json.append("    {\n");
+                json.append("      \"name\": \"").append(output.getName()).append("\",\n");
+                json.append("      \"namespace\": \"").append(output.getNamespace()).append("\"\n");
+                json.append("    }");
+                if (i < event.getOutputs().size() - 1) json.append(",");
+                json.append("\n");
+            }
+            json.append("  ]\n");
+            json.append("}");
+            return json.toString();
+        } catch (Exception e) {
+            return "Error creating JSON representation: " + e.getMessage();
+        }
+    }
+
     /**
      * Print detailed information about the parsed event
      */
