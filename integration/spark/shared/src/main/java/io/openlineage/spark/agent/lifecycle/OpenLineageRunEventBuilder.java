@@ -111,7 +111,7 @@ import scala.PartialFunction;
  */
 @Slf4j
 @AllArgsConstructor
-class OpenLineageRunEventBuilder {
+public class OpenLineageRunEventBuilder {
 
   @NonNull private final OpenLineageContext openLineageContext;
 
@@ -149,7 +149,7 @@ class OpenLineageRunEventBuilder {
   private final Map<Integer, ActiveJob> jobMap = new HashMap<>();
   private final Map<Integer, Stage> stageMap = new HashMap<>();
 
-  OpenLineageRunEventBuilder(OpenLineageContext context, OpenLineageEventHandlerFactory factory) {
+  public OpenLineageRunEventBuilder(OpenLineageContext context, OpenLineageEventHandlerFactory factory) {
     this(
         context,
         factory.createInputDatasetBuilder(context),
@@ -183,7 +183,7 @@ class OpenLineageRunEventBuilder {
                 }));
   }
 
-  RunEvent buildRun(OpenLineageRunEventContext context) {
+  public RunEvent buildRun(OpenLineageRunEventContext context) {
     OpenLineage openLineage = openLineageContext.getOpenLineage();
     List<Object> nodes = context.loadNodes(stageMap, jobMap);
     UUID runId = context.getOverwriteRunId().orElse(openLineageContext.getRunUuid());

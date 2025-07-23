@@ -56,7 +56,7 @@ import scala.PartialFunction;
  * @see ServiceLoader documentation for guidance on implementing an {@link
  *     OpenLineageEventHandlerFactory}
  */
-class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
+public class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
 
   public static final String SPARK_VERSION_3 = "3";
   private final List<OpenLineageEventHandlerFactory> eventHandlerFactories;

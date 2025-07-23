@@ -633,3 +633,19 @@ boolean hasIcebergDependencies(String spark, String scala) {
 static List<String> map(List<SourceSet> sourceSets, Function<SourceSet, String> func) {
     return sourceSets.stream().map(func).collect(Collectors.toList())
 }
+
+task runExample(type: JavaExec) {
+    group = 'application'
+    description = 'Run the ManualEventCreationExample'
+    
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'io.openlineage.spark.agent.util.ManualEventCreationExample'
+    
+    // Set system properties
+    systemProperty 'spark.master', 'local[*]'
+    
+    // Optional: Enable full JSON output
+    if (project.hasProperty('printFullJson')) {
+        systemProperty 'printFullJson', 'true'
+    }
+}
