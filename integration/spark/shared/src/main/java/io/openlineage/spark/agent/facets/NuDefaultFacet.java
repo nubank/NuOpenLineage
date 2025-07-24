@@ -52,7 +52,7 @@ public class NuDefaultFacet extends NuRunFacet {
 
   public NuDefaultFacet(@NonNull SparkSession sparkSession) {
     super(Versions.OPEN_LINEAGE_PRODUCER_URI);
-    this.jobNurn = getJobNurn(sparkSession);
-    this.resolvedInputs = getResolvedInputs(sparkSession);
+//    this.jobNurn = getJobNurn(sparkSession);
+//    this.resolvedInputs = getResolvedInputs(sparkSession);
   }
 }
