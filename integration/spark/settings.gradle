@@ -1,4 +1,8 @@
-include 'spark2'
+/*
+/* Copyright 2018-2025 contributors to the OpenLineage project
+/* SPDX-License-Identifier: Apache-2.0
+*/
+
 include 'spark3'
 include 'spark31'
 include 'spark32'
@@ -12,6 +16,12 @@ include 'scala-fixtures'
 
 include 'snowflake'
 project(":snowflake").projectDir = file("./vendor/snowflake")
+
+include 'iceberg'
+project(":iceberg").projectDir = file("./vendor/iceberg")
+
+include 'gcp'
+project(":gcp").projectDir = file("./vendor/gcp")
 
 buildCache {
     local {

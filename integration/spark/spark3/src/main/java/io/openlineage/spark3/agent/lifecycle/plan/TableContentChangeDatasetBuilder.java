@@ -1,18 +1,21 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark3.agent.lifecycle.plan;
 
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.OpenLineage.OutputDataset;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.spark.api.AbstractQueryPlanOutputDatasetBuilder;
+import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
-import io.openlineage.spark3.agent.lifecycle.plan.catalog.IcebergHandler;
+import io.openlineage.spark3.agent.lifecycle.plan.catalog.iceberg.IcebergHandler;
 import io.openlineage.spark3.agent.utils.DataSourceV2RelationDatasetExtractor;
-import io.openlineage.spark3.agent.utils.DatasetVersionDatasetFacetUtils;
 import java.util.List;
 import java.util.Optional;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.SparkListenerEvent;
 import org.apache.spark.sql.catalyst.analysis.NamedRelation;
@@ -24,15 +27,19 @@ import org.apache.spark.sql.catalyst.plans.logical.OverwriteByExpression;
 import org.apache.spark.sql.catalyst.plans.logical.OverwritePartitionsDynamic;
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData;
 import org.apache.spark.sql.catalyst.plans.logical.UpdateTable;
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation;
 
 @Slf4j
 public class TableContentChangeDatasetBuilder
     extends AbstractQueryPlanOutputDatasetBuilder<LogicalPlan> {
+  private final DatasetFactory<OutputDataset> factory;
 
-  public TableContentChangeDatasetBuilder(OpenLineageContext context) {
+  public TableContentChangeDatasetBuilder(
+      OpenLineageContext context, @NonNull DatasetFactory<OutputDataset> factory) {
     super(context, false);
+    this.factory = factory;
   }
 
   @Override
@@ -42,6 +49,7 @@ public class TableContentChangeDatasetBuilder
         || (x instanceof DeleteFromTable)
         || (x instanceof UpdateTable)
         || (new IcebergHandler(context).hasClasses() && x instanceof ReplaceData)
+        || (new IcebergHandler(context).hasClasses() && x instanceof WriteDelta)
         || (x instanceof MergeIntoTable)
         || (x instanceof InsertIntoStatement);
   }
@@ -60,15 +68,17 @@ public class TableContentChangeDatasetBuilder
       includeOverwriteFacet = true;
     }
 
-    final OpenLineage.DatasetFacetsBuilder datasetFacetsBuilder =
-        context.getOpenLineage().newDatasetFacetsBuilder();
+    final DatasetCompositeFacetsBuilder datasetFacetsBuilder =
+        factory.createCompositeFacetBuilder();
     if (includeOverwriteFacet) {
-      datasetFacetsBuilder.lifecycleStateChange(
-          context
-              .getOpenLineage()
-              .newLifecycleStateChangeDatasetFacet(
-                  OpenLineage.LifecycleStateChangeDatasetFacet.LifecycleStateChange.OVERWRITE,
-                  null));
+      datasetFacetsBuilder
+          .getFacets()
+          .lifecycleStateChange(
+              context
+                  .getOpenLineage()
+                  .newLifecycleStateChangeDatasetFacet(
+                      OpenLineage.LifecycleStateChangeDatasetFacet.LifecycleStateChange.OVERWRITE,
+                      null));
     }
 
     // FIXME: Use 'castToDataSourceV2Relation()' to safely cast 'DataSourceV2ScanRelation' to
@@ -79,13 +89,8 @@ public class TableContentChangeDatasetBuilder
         (table instanceof DataSourceV2ScanRelation)
             ? castToDataSourceV2Relation(x, table)
             : (DataSourceV2Relation) table;
-    if (includeDatasetVersion(event)) {
-      DatasetVersionDatasetFacetUtils.includeDatasetVersion(
-          context, datasetFacetsBuilder, returnTable);
-    }
-
     return DataSourceV2RelationDatasetExtractor.extract(
-        outputDataset(), context, returnTable, datasetFacetsBuilder);
+        outputDataset(), context, returnTable, datasetFacetsBuilder, includeDatasetVersion(event));
   }
 
   private NamedRelation getNamedRelation(LogicalPlan x) {
@@ -95,9 +100,9 @@ public class TableContentChangeDatasetBuilder
     } else if (x instanceof InsertIntoStatement) {
       return (NamedRelation) ((InsertIntoStatement) x).table();
     } else if (new IcebergHandler(context).hasClasses() && x instanceof ReplaceData) {
-      // DELETE FROM on ICEBERG HAS START ELEMENT WITH ReplaceData AND COMPLETE ONE WITH
-      // DeleteFromTable
       return ((ReplaceData) x).table();
+    } else if (new IcebergHandler(context).hasClasses() && x instanceof WriteDelta) {
+      return ((WriteDelta) x).table();
     } else if (x instanceof DeleteFromTable) {
       return (NamedRelation) ((DeleteFromTable) x).table();
     } else if (x instanceof UpdateTable) {

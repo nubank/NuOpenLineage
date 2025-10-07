@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -11,7 +11,9 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import io.openlineage.client.circuitBreaker.CircuitBreakerResolver.CircuitBreakerServiceLoader;
+import java.time.Duration;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -49,5 +51,13 @@ class CircuitBreakerResolverTest {
     assertThat(
             CircuitBreakerResolver.resolveCircuitBreakerByConfig(mock(CircuitBreakerConfig.class)))
         .isInstanceOf(NoOpCircuitBreaker.class);
+  }
+
+  @Test
+  void testBuilderForTimeoutCircuitBreaker() {
+    TimeoutCircuitBreakerConfig config = mock(TimeoutCircuitBreakerConfig.class);
+    when(config.getTimeout()).thenReturn(Optional.of(Duration.ofMillis(100)));
+    assertThat(CircuitBreakerResolver.resolveCircuitBreakerByConfig(config))
+        .isInstanceOf(TimeoutCircuitBreaker.class);
   }
 }

@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -7,12 +7,16 @@ package io.openlineage.spark3.agent.lifecycle.plan.catalog;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.utils.DatasetIdentifier;
+import io.openlineage.client.utils.DatasetIdentifier.SymlinkType;
 import io.openlineage.spark.agent.util.PathUtils;
+import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.OpenLineageContext;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import java.util.Optional;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.reflect.MethodUtils;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
@@ -20,11 +24,14 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.V1Table;
+import org.apache.spark.sql.delta.Snapshot;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.apache.spark.sql.delta.catalog.DeltaTableV2;
+import scala.Option;
 
 @Slf4j
 public class DeltaHandler implements CatalogHandler {
+  private static final String DELTA = "delta";
   private final OpenLineageContext context;
 
   public DeltaHandler(OpenLineageContext context) {
@@ -63,12 +70,23 @@ public class DeltaHandler implements CatalogHandler {
       Path path = new Path(identifier.name());
       return PathUtils.fromPath(path);
     }
+    Map<String, String> sparkRuntimeConfig = ScalaConversionUtils.fromMap(session.conf().getAll());
 
     if (table instanceof DeltaTableV2) {
       DeltaTableV2 deltaTable = (DeltaTableV2) table;
       // catalogTable is Option, but it is empty only for path identifier
-      CatalogTable catalogTable = deltaTable.catalogTable().get();
-      return PathUtils.fromCatalogTable(catalogTable, session);
+      Option<CatalogTable> catalogTable = deltaTable.catalogTable();
+
+      if (catalogTable.isDefined()) {
+        return PathUtils.fromCatalogTable(catalogTable.get(), session);
+      } else {
+        return PathUtils.fromPath(deltaTable.path())
+            .withSymlink(
+                identifier.toString(),
+                Optional.ofNullable(sparkRuntimeConfig.get("spark.sql.warehouse.dir"))
+                    .orElse(tableCatalog.name()),
+                SymlinkType.TABLE);
+      }
     }
 
     // not a Delta table, fallback to SparkCatalog. See:
@@ -78,12 +96,31 @@ public class DeltaHandler implements CatalogHandler {
   }
 
   @Override
+  public Optional<CatalogWithAdditionalFacets> getCatalogDatasetFacet(
+      TableCatalog tableCatalog, Map<String, String> properties) {
+    String name = tableCatalog.name();
+    if (name == null || name.isEmpty()) {
+      name = "spark_catalog"; // default
+    }
+    OpenLineage.CatalogDatasetFacetBuilder builder =
+        context
+            .getOpenLineage()
+            .newCatalogDatasetFacetBuilder()
+            .name(name)
+            .framework(DELTA)
+            .type(DELTA)
+            .source("spark");
+
+    return Optional.of(CatalogWithAdditionalFacets.of(builder.build()));
+  }
+
+  @Override
   public Optional<OpenLineage.StorageDatasetFacet> getStorageDatasetFacet(
       Map<String, String> properties) {
     return Optional.of(
         context
             .getOpenLineage()
-            .newStorageDatasetFacet("delta", "parquet")); // Delta is always parquet
+            .newStorageDatasetFacet(DELTA, "parquet")); // Delta is always parquet
   }
 
   @SneakyThrows
@@ -95,13 +132,44 @@ public class DeltaHandler implements CatalogHandler {
 
     if (table instanceof DeltaTableV2) {
       DeltaTableV2 deltaTable = (DeltaTableV2) table;
-      return Optional.of(Long.toString(deltaTable.snapshot().version()));
+      Optional<Snapshot> snapshot = getDeltaTableSnapshot(deltaTable);
+      if (snapshot.isPresent()) {
+        return Optional.of(Long.toString(snapshot.get().version()));
+      }
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * Versions of Delta differ in implementation of {@link DeltaTableV2} class. This method retrieves
+   * the table snapshot regardless of the Delta version. Previously `snapshot` method was available
+   * in Scala class for Delta < 3. Recent changes in Delta 3+ changed the naming of this function to
+   * be 'initialSnapshot'. The developers wanted to indicate with this rename that the snapshot we
+   * are getting, is a lazy value that returns the initial version you read. If the table has been
+   * changed in the meantime, you will not get the latest snapshot but that initial version you
+   * read.
+   *
+   * @return Optional SnapShot of the deltaTable.
+   */
+  private Optional<Snapshot> getDeltaTableSnapshot(DeltaTableV2 deltaTable) {
+    if (MethodUtils.getAccessibleMethod(deltaTable.getClass(), "snapshot") != null) {
+      try {
+        return Optional.of((Snapshot) MethodUtils.invokeMethod(deltaTable, "snapshot"));
+      } catch (InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
+        log.error("Could not invoke method", e);
+      }
+    } else if (MethodUtils.getAccessibleMethod(deltaTable.getClass(), "initialSnapshot") != null) {
+      try {
+        return Optional.of((Snapshot) MethodUtils.invokeMethod(deltaTable, "initialSnapshot"));
+      } catch (InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
+        log.error("Could not invoke method", e);
+      }
     }
     return Optional.empty();
   }
 
   @Override
   public String getName() {
-    return "delta";
+    return DELTA;
   }
 }

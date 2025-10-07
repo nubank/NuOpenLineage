@@ -1,4 +1,4 @@
-// Copyright 2018-2024 contributors to the OpenLineage project
+// Copyright 2018-2025 contributors to the OpenLineage project
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::CanonicalDialect;
@@ -183,11 +183,11 @@ impl DbTableMeta {
             "{}{}{}",
             self.database
                 .as_ref()
-                .map(|x| format!("{}.", x))
+                .map(|x| format!("{x}."))
                 .unwrap_or_default(),
             self.schema
                 .as_ref()
-                .map(|x| format!("{}.", x))
+                .map(|x| format!("{x}."))
                 .unwrap_or_default(),
             self.name
         )

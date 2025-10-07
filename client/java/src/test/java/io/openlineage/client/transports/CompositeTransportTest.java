@@ -1,35 +1,48 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.client.transports;
 
+import static io.openlineage.client.Events.datasetEvent;
+import static io.openlineage.client.Events.jobEvent;
 import static io.openlineage.client.Events.runEvent;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.OpenLineageClientException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 import lombok.NonNull;
+import lombok.SneakyThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 // Fake transport base class for testing
 abstract class FakeTransport extends Transport {
   private boolean emitted;
-
-  public FakeTransport() {
-    super(Type.NOOP); // Using NOOP or any placeholder type
-  }
+  private boolean closed;
 
   public boolean isEmitted() {
     return emitted;
+  }
+
+  public boolean isClosed() {
+    return closed;
   }
 
   @Override
@@ -45,6 +58,11 @@ abstract class FakeTransport extends Transport {
   @Override
   public void emit(@NonNull OpenLineage.JobEvent jobEvent) {
     emitted = true; // Set to true when emit is called
+  }
+
+  @Override
+  public void close() {
+    closed = true; // Set to true when close is called
   }
 }
 
@@ -80,7 +98,8 @@ class CompositeTransportTest {
 
     try (MockedStatic<TransportResolver> mockedStatic = mockTransportResolver()) {
       compositeConfig =
-          new CompositeConfig(Arrays.asList(fakeTransportAConfig, fakeTransportBConfig), true);
+          new CompositeConfig(
+              Arrays.asList(fakeTransportAConfig, fakeTransportBConfig), true, true);
     }
   }
 
@@ -108,16 +127,32 @@ class CompositeTransportTest {
 
   @Test
   void testEmitSuccessful() {
-    OpenLineage.RunEvent event = runEvent();
-
     try (MockedStatic<TransportResolver> mockedStatic = mockTransportResolver()) {
       CompositeTransport compositeTransport = new CompositeTransport(compositeConfig);
-      compositeTransport.emit(event);
+
+      OpenLineage.RunEvent runEvent = runEvent();
+      compositeTransport.emit(runEvent);
 
       assertTrue(fakeTransportA.isEmitted());
       assertTrue(fakeTransportB.isEmitted());
-      verify(fakeTransportA, times(1)).emit(event);
-      verify(fakeTransportB, times(1)).emit(event);
+      verify(fakeTransportA, times(1)).emit(runEvent);
+      verify(fakeTransportB, times(1)).emit(runEvent);
+
+      OpenLineage.DatasetEvent datasetEvent = datasetEvent();
+      compositeTransport.emit(datasetEvent);
+
+      assertTrue(fakeTransportA.isEmitted());
+      assertTrue(fakeTransportB.isEmitted());
+      verify(fakeTransportA, times(1)).emit(datasetEvent);
+      verify(fakeTransportB, times(1)).emit(datasetEvent);
+
+      OpenLineage.JobEvent jobEvent = jobEvent();
+      compositeTransport.emit(jobEvent);
+
+      assertTrue(fakeTransportA.isEmitted());
+      assertTrue(fakeTransportB.isEmitted());
+      verify(fakeTransportA, times(1)).emit(jobEvent);
+      verify(fakeTransportB, times(1)).emit(jobEvent);
     }
   }
 
@@ -143,7 +178,7 @@ class CompositeTransportTest {
   void testEmitPartialFailureContinueOnFailureFalse() {
     try (MockedStatic<TransportResolver> mockedStatic = mockTransportResolver()) {
       CompositeConfig configWithFailFast =
-          CompositeConfig.createFromTransportConfigs(compositeConfig.getTransports(), false);
+          CompositeConfig.createFromTransportConfigs(compositeConfig.getTransports(), false, true);
       CompositeTransport compositeTransport = new CompositeTransport(configWithFailFast);
       doThrow(new RuntimeException("FakeTransportA failed"))
           .when(fakeTransportA)
@@ -153,7 +188,8 @@ class CompositeTransportTest {
 
       RuntimeException exception =
           assertThrows(RuntimeException.class, () -> compositeTransport.emit(event));
-      assertEquals("Transport FakeTransportA failed to emit event", exception.getMessage());
+      assertThat(exception.getMessage())
+          .contains(("Transport FakeTransportA failed to emit event"));
       verify(fakeTransportA, times(1)).emit(event);
       verify(fakeTransportB, times(0)).emit(event);
     }
@@ -179,6 +215,40 @@ class CompositeTransportTest {
     }
   }
 
+  @SneakyThrows
+  @Test
+  void testClose() {
+    try (MockedStatic<TransportResolver> mockedStatic = mockTransportResolver()) {
+      CompositeTransport compositeTransport = new CompositeTransport(compositeConfig);
+
+      compositeTransport.close();
+      assertTrue(fakeTransportA.isClosed());
+      assertTrue(fakeTransportB.isClosed());
+
+      verify(fakeTransportA, times(1)).close();
+      verify(fakeTransportB, times(1)).close();
+    }
+  }
+
+  @SneakyThrows
+  @Test
+  void testCloseFails() {
+    try (MockedStatic<TransportResolver> mockedStatic = mockTransportResolver()) {
+      CompositeTransport compositeTransport = new CompositeTransport(compositeConfig);
+      RuntimeException nestedException = new RuntimeException("FakeTransportA failed");
+      doThrow(nestedException).when(fakeTransportA).close();
+
+      OpenLineageClientException exception =
+          assertThrows(OpenLineageClientException.class, () -> compositeTransport.close());
+      assertThat(exception.getCause()).isEqualTo(nestedException);
+
+      assertTrue(fakeTransportB.isClosed()); // close both transports even if one fails
+
+      verify(fakeTransportA, times(1)).close();
+      verify(fakeTransportB, times(1)).close();
+    }
+  }
+
   @Test
   void testInvalidConfig() {
     try (MockedStatic<TransportResolver> mockedStatic = mockTransportResolver()) {
@@ -192,7 +262,7 @@ class CompositeTransportTest {
       IllegalArgumentException exception =
           assertThrows(
               IllegalArgumentException.class,
-              () -> new CompositeConfig(Arrays.asList(invalidConfig), true));
+              () -> new CompositeConfig(Arrays.asList(invalidConfig), true, true));
       assertTrue(exception.getMessage().contains("Invalid transport"));
     }
   }
@@ -207,9 +277,192 @@ class CompositeTransportTest {
       fakeTransportBConfig.put("type", "fakeB");
       config.put("myFakeA", fakeTransportAConfig);
       config.put("myFakeB", fakeTransportBConfig);
-      CompositeConfig compositeConfig = new CompositeConfig(config, true);
-      assertEquals(compositeConfig.getTransports().get(1).getName(), "myFakeA");
-      assertEquals(compositeConfig.getTransports().get(0).getName(), "myFakeB");
+      CompositeConfig compositeConfig = new CompositeConfig(config, true, true);
+      assertEquals(compositeConfig.getTransports().get(0).getName(), "myFakeA");
+      assertEquals(compositeConfig.getTransports().get(1).getName(), "myFakeB");
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void testParallelEmissionOfRunEvents(Boolean withThreadPool) {
+    AtomicInteger eventsEmitted = new AtomicInteger(0);
+    try (MockedStatic<TransportResolver> mockedStatic =
+        Mockito.mockStatic(TransportResolver.class)) {
+      mockedStatic
+          .when(() -> TransportResolver.resolveTransportConfigByType(any()))
+          .thenReturn((Class<? extends TransportConfig>) FakeTransportConfigA.class);
+
+      mockedStatic
+          .when(() -> TransportResolver.resolveTransportByConfig(any()))
+          .thenReturn(new FakeTransportWithSleep(100, eventsEmitted));
+
+      Map<String, Object> config = new HashMap<>();
+      Map<String, Object> fakeTransportConfig = new HashMap<>();
+      fakeTransportConfig.put("type", "fakeA");
+      IntStream.range(0, Runtime.getRuntime().availableProcessors())
+          .forEach(
+              i -> {
+                config.put("myFakeA" + i, fakeTransportConfig);
+              });
+
+      compositeConfig = new CompositeConfig(config, true, withThreadPool);
+      try (CompositeTransport compositeTransport = new CompositeTransport(compositeConfig)) {
+        for (int iteration = 0; iteration < 2; iteration++) {
+          long startTime = System.currentTimeMillis();
+          compositeTransport.emit(runEvent());
+          long endTime = System.currentTimeMillis();
+
+          assertThat(eventsEmitted.get())
+              .isEqualTo(
+                  (iteration + 1)
+                      * Runtime.getRuntime().availableProcessors()); // All events should be emitted
+
+          if (withThreadPool) {
+            assertThat(endTime - startTime)
+                .isGreaterThanOrEqualTo(100)
+                .isLessThan(200); // Should take around 100ms to emit all events
+          } else {
+            assertThat(endTime - startTime)
+                .isGreaterThanOrEqualTo(Runtime.getRuntime().availableProcessors() * 100)
+                .isLessThan(
+                    Runtime.getRuntime().availableProcessors()
+                        * 200); // Should take around N*100ms to emit all events
+          }
+        }
+      } catch (Exception e) {
+        throw new RuntimeException("Error closing CompositeTransport", e);
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true", "false"})
+  void testShutdownThreadPool(String withThreadPoolString) {
+    boolean withThreadPool = Boolean.parseBoolean(withThreadPoolString);
+    try (MockedStatic<TransportResolver> mockedStatic =
+        Mockito.mockStatic(TransportResolver.class)) {
+      try (MockedStatic<Executors> mockedExecutors = Mockito.mockStatic(Executors.class)) {
+        mockedStatic
+            .when(() -> TransportResolver.resolveTransportConfigByType(any()))
+            .thenReturn((Class<? extends TransportConfig>) FakeTransportConfigA.class);
+
+        mockedStatic
+            .when(() -> TransportResolver.resolveTransportByConfig(any()))
+            .thenReturn(new FakeTransport() {});
+
+        ExecutorService threadPool = mock(ExecutorService.class);
+        mockedExecutors
+            .when(() -> Executors.newFixedThreadPool(anyInt(), any()))
+            .thenReturn(threadPool);
+
+        Map<String, Object> config = new HashMap<>();
+        Map<String, Object> fakeTransportConfig = new HashMap<>();
+        fakeTransportConfig.put("type", "fakeA");
+        config.put("myFakeA", fakeTransportConfig);
+
+        compositeConfig = new CompositeConfig(config, true, withThreadPool);
+        CompositeTransport compositeTransport = new CompositeTransport(compositeConfig);
+
+        compositeTransport.emit(runEvent());
+      }
+    }
+  }
+
+  @Test
+  void testThreadNaming() {
+    FakeTransportWithThreadCapture.capturedThreadNames.clear(); // Clear before test
+    AtomicInteger eventsEmitted = new AtomicInteger(0);
+    try (MockedStatic<TransportResolver> mockedStatic =
+        Mockito.mockStatic(TransportResolver.class)) {
+      mockedStatic
+          .when(() -> TransportResolver.resolveTransportConfigByType(any()))
+          .thenReturn((Class<? extends TransportConfig>) FakeTransportConfigA.class);
+
+      mockedStatic
+          .when(() -> TransportResolver.resolveTransportByConfig(any()))
+          .thenReturn(new FakeTransportWithThreadCapture(eventsEmitted));
+
+      Map<String, Object> config = new HashMap<>();
+      Map<String, Object> fakeTransportConfig = new HashMap<>();
+      fakeTransportConfig.put("type", "fakeA");
+      config.put("myFakeA1", fakeTransportConfig);
+      config.put("myFakeA2", fakeTransportConfig);
+
+      compositeConfig =
+          new CompositeConfig(config, true, true); // continueOnFailure=true, withThreadPool=true
+      try (CompositeTransport compositeTransport = new CompositeTransport(compositeConfig)) {
+        compositeTransport.emit(runEvent());
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+
+      assertThat(eventsEmitted.get()).isEqualTo(2); // Both transports should emit
+      assertThat(FakeTransportWithThreadCapture.capturedThreadNames)
+          .hasSize(2)
+          .allMatch(name -> name.startsWith("openlineage-executor-"))
+          .allMatch(name -> name.matches("openlineage-executor-\\d+"));
+    }
+  }
+
+  private static class FakeTransportWithSleep extends FakeTransport {
+    private final long sleepTime;
+    private final AtomicInteger emittedCounter;
+
+    public FakeTransportWithSleep(long sleepTime, AtomicInteger emittedCounter) {
+      super();
+      this.sleepTime = sleepTime;
+      this.emittedCounter = emittedCounter;
+    }
+
+    @Override
+    @SneakyThrows
+    public void emit(@NonNull OpenLineage.RunEvent runEvent) {
+      Thread.sleep(sleepTime);
+      emittedCounter.incrementAndGet();
+    }
+
+    @Override
+    @SneakyThrows
+    public void emit(@NonNull OpenLineage.DatasetEvent datasetEvent) {
+      Thread.sleep(sleepTime);
+      emittedCounter.incrementAndGet();
+    }
+
+    @Override
+    @SneakyThrows
+    public void emit(@NonNull OpenLineage.JobEvent jobEvent) {
+      Thread.sleep(sleepTime);
+      emittedCounter.incrementAndGet();
+    }
+  }
+
+  private static class FakeTransportWithThreadCapture extends FakeTransport {
+    private final AtomicInteger emittedCounter;
+    static final java.util.List<String> capturedThreadNames =
+        new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public FakeTransportWithThreadCapture(AtomicInteger emittedCounter) {
+      super();
+      this.emittedCounter = emittedCounter;
+    }
+
+    @Override
+    public void emit(@NonNull OpenLineage.RunEvent runEvent) {
+      capturedThreadNames.add(Thread.currentThread().getName());
+      emittedCounter.incrementAndGet();
+    }
+
+    @Override
+    public void emit(@NonNull OpenLineage.DatasetEvent datasetEvent) {
+      capturedThreadNames.add(Thread.currentThread().getName());
+      emittedCounter.incrementAndGet();
+    }
+
+    @Override
+    public void emit(@NonNull OpenLineage.JobEvent jobEvent) {
+      capturedThreadNames.add(Thread.currentThread().getName());
+      emittedCounter.incrementAndGet();
     }
   }
 }

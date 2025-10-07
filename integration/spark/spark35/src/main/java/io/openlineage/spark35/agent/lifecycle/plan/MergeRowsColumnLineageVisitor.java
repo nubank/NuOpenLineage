@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -9,7 +9,7 @@ import io.openlineage.spark.agent.lifecycle.plan.column.ColumnLevelLineageContex
 import io.openlineage.spark.agent.lifecycle.plan.column.ColumnLevelLineageVisitor;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.OpenLineageContext;
-import io.openlineage.spark3.agent.lifecycle.plan.column.ExpressionDependencyCollector;
+import io.openlineage.spark3.agent.lifecycle.plan.column.ExpressionTraverser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -68,10 +68,11 @@ public class MergeRowsColumnLineageVisitor implements ColumnLevelLineageVisitor 
                             .filter(expr -> expr instanceof NamedExpression)
                             .forEach(
                                 expr ->
-                                    ExpressionDependencyCollector.traverseExpression(
-                                        expr,
-                                        mergeRows.output().apply(position).exprId(),
-                                        context.getBuilder()));
+                                    ExpressionTraverser.of(
+                                            expr,
+                                            mergeRows.output().apply(position).exprId(),
+                                            context.getBuilder())
+                                        .traverse());
                       });
             });
   }

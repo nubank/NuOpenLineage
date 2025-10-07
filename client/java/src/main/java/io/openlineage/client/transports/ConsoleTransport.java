@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -12,10 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public final class ConsoleTransport extends Transport {
-  public ConsoleTransport() {
-    super(Type.CONSOLE);
-  }
-
   @Override
   public void emit(@NonNull OpenLineage.RunEvent runEvent) {
     emit(OpenLineageClientUtils.toJson(runEvent));

@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -19,6 +19,8 @@ public interface CircuitBreaker {
    * @param <T> callable generic type
    */
   <T> T run(Callable<T> callable);
+
+  void close();
 
   default int getCheckIntervalMillis() {
     return CIRCUIT_CHECK_INTERVAL_IN_MILLIS;

@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -167,7 +167,7 @@ class OpenLineageSqlTest {
     assertEquals(1, output.errors().size());
     assertEquals(
         Collections.singletonList(
-            new ExtractionError(0, "Expected an SQL statement, found: NOT", "NOT A STATEMENT")),
+            new ExtractionError(0, "Expected: an SQL statement, found: NOT at Line: 1, Column: 1", "NOT A STATEMENT")),
         output.errors());
   }
 
@@ -182,9 +182,9 @@ class OpenLineageSqlTest {
     assertEquals(2, output.errors().size());
     assertEquals(
         Arrays.asList(
-            new ExtractionError(0, "Expected an SQL statement, found: NOT", "NOT A STATEMENT"),
+            new ExtractionError(0, "Expected: an SQL statement, found: NOT at Line: 1, Column: 1", "NOT A STATEMENT"),
             new ExtractionError(
-                2, "Expected an SQL statement, found: ANOTHER", "ANOTHER NON STATEMENT")),
+                2, "Expected: an SQL statement, found: ANOTHER at Line: 1, Column: 1", "ANOTHER NON STATEMENT")),
         output.errors());
   }
 

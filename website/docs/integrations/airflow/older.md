@@ -1,10 +1,10 @@
 ---
 sidebar_position: 2
-title: Supported Airflow versions
+title: Supported Airflow Versions
 ---
 
 :::caution
-This page is about Airflow's external integration that works mainly for Airflow versions <2.7. 
+This page is about Airflow's external integration that works mainly for Airflow versions \<2.7. 
 [If you're using Airflow 2.7+, look at native Airflow OpenLineage provider documentation.](https://airflow.apache.org/docs/apache-airflow-providers-openlineage/stable/index.html)  <br /><br /> 
 
 The ongoing development and enhancements will be focused on the `apache-airflow-providers-openlineage` package, 
@@ -16,11 +16,13 @@ while the `openlineage-airflow` will primarily be updated for bug fixes.
 ##### Airflow 2.7+
 
 This package **should not** be used starting with Airflow 2.7.0 and **can not** be used with Airflow 2.8+. 
-It was designed as Airflow's external integration that works mainly for Airflow versions <2.7.
+It was designed as Airflow's external integration that works mainly for Airflow versions \<2.7.
 For Airflow 2.7+ use the native Airflow OpenLineage provider 
 [package](https://airflow.apache.org/docs/apache-airflow-providers-openlineage) `apache-airflow-providers-openlineage`.
 
 ##### Airflow 2.3 - 2.6
+
+> **_NOTE:_** The last version of openlineage-airflow to support Airflow versions 2.3-2.4 is **1.33.0**  
 
 The integration automatically registers itself starting from Airflow 2.3 if it's installed on the Airflow worker's Python.
 This means you don't have to do anything besides configuring where the events are sent, which is described in the [configuration](#configuration) section.
@@ -44,6 +46,6 @@ openlineage.lineage_backend.OpenLineageBackend
 
 The OpenLineageBackend does not take into account manually configured inlets and outlets. 
 
-##### Airflow <2.1 
+##### Airflow \<2.1 
 
 OpenLineage does not work with versions older than Airflow 2.1.

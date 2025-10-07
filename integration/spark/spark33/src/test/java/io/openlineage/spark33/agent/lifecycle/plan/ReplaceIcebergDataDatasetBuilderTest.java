@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -14,20 +14,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.OpenLineage.DatasetFacetsBuilder;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.SparkOpenLineageConfig;
 import io.openlineage.spark3.agent.utils.DataSourceV2RelationDatasetExtractor;
-import io.openlineage.spark3.agent.utils.DatasetVersionDatasetFacetUtils;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import org.apache.spark.SparkContext;
 import org.apache.spark.scheduler.SparkListenerEvent;
 import org.apache.spark.sql.SparkSession;
@@ -73,37 +72,34 @@ class ReplaceIcebergDataDatasetBuilderTest {
   void testApply() {
     DataSourceV2Relation table = mock(DataSourceV2Relation.class);
     OpenLineage.OutputDataset expectedDataset = mock(OpenLineage.OutputDataset.class);
-    OpenLineage.DatasetFacetsBuilder datasetFacetsBuilder =
-        mock(OpenLineage.DatasetFacetsBuilder.class);
-    when(openLineage.newDatasetFacetsBuilder()).thenReturn(datasetFacetsBuilder);
+    DatasetCompositeFacetsBuilder compositeFacetsBuilder =
+        mock(DatasetCompositeFacetsBuilder.class);
+    DatasetFacetsBuilder facetsBuilder = mock(DatasetFacetsBuilder.class);
+
+    when(compositeFacetsBuilder.getFacets()).thenReturn(facetsBuilder);
 
     when(plan.table()).thenReturn(table);
     try (MockedStatic mocked = mockStatic(DataSourceV2RelationDatasetExtractor.class)) {
-      try (MockedStatic mockedFacetUtils = mockStatic(DatasetVersionDatasetFacetUtils.class)) {
-        when(DatasetVersionDatasetFacetUtils.extractVersionFromDataSourceV2Relation(
-                openLineageContext, table))
-            .thenReturn(Optional.of("v2"));
-
+      try (MockedStatic mockedDatasetFactory = mockStatic(DatasetFactory.class)) {
         when(DataSourceV2RelationDatasetExtractor.extract(
                 any(DatasetFactory.class),
                 eq(openLineageContext),
                 eq(table),
-                eq(datasetFacetsBuilder)))
+                any(),
+                any(Boolean.class)))
             .thenReturn(Arrays.asList(expectedDataset));
+
+        DatasetFactory datasetFactory = mock(DatasetFactory.class);
+        when(DatasetFactory.output(openLineageContext)).thenReturn(datasetFactory);
+        when(datasetFactory.createCompositeFacetBuilder()).thenReturn(compositeFacetsBuilder);
 
         List<OpenLineage.OutputDataset> datasets = builder.apply(event, plan);
 
         assertEquals(1, datasets.size());
         assertEquals(expectedDataset, datasets.get(0));
 
-        verify(datasetFacetsBuilder)
+        verify(facetsBuilder)
             .lifecycleStateChange(openLineage.newLifecycleStateChangeDatasetFacet(OVERWRITE, null));
-
-        mockedFacetUtils.verify(
-            () ->
-                DatasetVersionDatasetFacetUtils.includeDatasetVersion(
-                    openLineageContext, datasetFacetsBuilder, table),
-            times(1));
       }
     }
   }

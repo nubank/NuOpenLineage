@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -13,9 +13,11 @@ import java.util.stream.Collectors;
 
 public class VendorsImpl implements Vendors {
   private final List<Vendor> vendors;
+  private final VendorsContext vendorsContext;
 
-  public VendorsImpl(List<Vendor> vendors) {
+  public VendorsImpl(List<Vendor> vendors, VendorsContext vendorsContext) {
     this.vendors = vendors;
+    this.vendorsContext = vendorsContext;
   }
 
   @Override
@@ -34,5 +36,10 @@ public class VendorsImpl implements Vendors {
         .filter(Optional::isPresent)
         .map(Optional::get)
         .collect(Collectors.toList());
+  }
+
+  @Override
+  public VendorsContext getVendorsContext() {
+    return vendorsContext;
   }
 }

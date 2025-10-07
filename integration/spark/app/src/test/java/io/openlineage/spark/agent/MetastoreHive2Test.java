@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -8,6 +8,7 @@ package io.openlineage.spark.agent;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.openlineage.spark.agent.util.DerbyUtils;
+import java.io.IOException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.fs.FileSystem;
@@ -65,7 +66,7 @@ class MetastoreHive2Test {
   }
 
   @AfterAll
-  public static void tearDown() {
+  public static void tearDown() throws IOException {
     DerbyUtils.clearDerbyProperty();
     metastoreContainer.stop();
     MetastoreTestUtils.removeDatabaseFiles(database, fs);
@@ -94,6 +95,6 @@ class MetastoreHive2Test {
   }
 
   public static Dataset<Row> executeSql(String query, String... params) {
-    return spark.sql(String.format(query, params));
+    return spark.sql(String.format(query, (Object[]) params));
   }
 }

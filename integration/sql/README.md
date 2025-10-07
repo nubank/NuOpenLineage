@@ -80,6 +80,11 @@ The interface can be manually tested by running the integration test from the `i
 ./src/test/integration/run_test.sh [sql]
 ```
 
+#### Java Versions
+Works on Java 17
+
+`./gradlew build` fails on Java 21
+
 #### Todo:
 * Support a larger part of the SQL language 
 * Python as a Cargo feature
@@ -87,4 +92,4 @@ The interface can be manually tested by running the integration test from the `i
 
 ----
 SPDX-License-Identifier: Apache-2.0\
-Copyright 2018-2024 contributors to the OpenLineage project
+Copyright 2018-2025 contributors to the OpenLineage project

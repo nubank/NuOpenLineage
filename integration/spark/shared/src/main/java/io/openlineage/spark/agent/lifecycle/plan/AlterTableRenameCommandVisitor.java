@@ -1,11 +1,12 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark.agent.lifecycle.plan;
 
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.spark.agent.util.PathUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
@@ -62,12 +63,14 @@ public class AlterTableRenameCommandVisitor
             .build();
 
     DatasetFactory<OpenLineage.OutputDataset> factory = outputDataset();
-    return Collections.singletonList(
-        factory.getDataset(
-            di,
-            new OpenLineage.DatasetFacetsBuilder()
-                .schema(PlanUtils.schemaFacet(context.getOpenLineage(), table.schema()))
-                .dataSource(PlanUtils.datasourceFacet(context.getOpenLineage(), di.getNamespace()))
-                .lifecycleStateChange(lifecycleStateChangeDatasetFacet)));
+
+    DatasetCompositeFacetsBuilder datasetFacetsBuilder = factory.createCompositeFacetBuilder();
+    datasetFacetsBuilder
+        .getFacets()
+        .schema(PlanUtils.schemaFacet(context.getOpenLineage(), table.schema()))
+        .dataSource(PlanUtils.datasourceFacet(context.getOpenLineage(), di.getNamespace()))
+        .lifecycleStateChange(lifecycleStateChangeDatasetFacet);
+
+    return Collections.singletonList(factory.getDataset(di, datasetFacetsBuilder));
   }
 }

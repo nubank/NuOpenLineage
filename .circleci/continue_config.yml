@@ -15,6 +15,10 @@ parameters:
   nightly-run:
     type: string
     default: "inactive"
+  integration-type:
+    type: enum
+    default: "*"
+    enum: [ "*", "airflow", "dagster", "dbt", "publish", "python" ]
 
 checkout_project_root:
   &checkout_project_root # Override checkout path to project root (see: https://circleci.com/docs/2.0/configuration-reference/#checkout)
@@ -32,8 +36,8 @@ commands:
       - run: |
           # Get, then decode the GPG private key used to sign *.jar
           export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
-          export RELEASE_PASSWORD=$(echo $OSSRH_TOKEN_PASSWORD)
-          export RELEASE_USERNAME=$(echo $OSSRH_TOKEN_USERNAME)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
 
           ./gradlew --console=plain publishToMavenLocal --info
   publish_shadow_jar:
@@ -43,8 +47,8 @@ commands:
       - run: |
           # Get, then decode the GPG private key used to sign *.jar
           export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
-          export RELEASE_PASSWORD=$(echo $OSSRH_TOKEN_PASSWORD)
-          export RELEASE_USERNAME=$(echo $OSSRH_TOKEN_USERNAME)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
 
           ./gradlew --console=plain publishToSonatype closeAndReleaseSonatypeStagingRepository --info
   set_java_version:
@@ -75,7 +79,32 @@ commands:
             echo "Setting default Java to ${JAVA_BIN}"
             sudo update-alternatives --set java ${JAVA_BIN}
             sudo update-alternatives --set javac ${JAVAC_BIN}
-
+  set_java_spark_scala_version:
+    parameters:
+      env-variant:
+        type: string
+    description: "Set Java, Spark and Scala versions"
+    steps:
+      - run: |
+          set -eux
+          JAVA=$(echo << parameters.env-variant >> | cut -d '-' -f 1 | cut -d ':' -f 2)
+          SPARK=$(echo << parameters.env-variant >> | cut -d '-' -f 2 | cut -d ':' -f 2)
+          SCALA=$(echo << parameters.env-variant >> | cut -d '-' -f 3 | cut -d ':' -f 2)
+          echo spark=$SPARK java=$JAVA scala=$SCALA
+          JAVA8_HOME='/usr/lib/jvm/java-8-openjdk-amd64'
+          JAVA17_HOME='/usr/lib/jvm/java-17-openjdk-amd64'
+          JAVA_BIN=$([ "$JAVA" = "17" ] && echo "$JAVA17_HOME/bin/java" || echo "$JAVA8_HOME/jre/bin/java")
+          JAVAC_BIN=$([ "$JAVA" = "17" ] && echo "$JAVA17_HOME/bin/javac" || echo "$JAVA8_HOME/bin/javac")
+            
+          echo 'export JAVA17_HOME="/usr/lib/jvm/java-17-openjdk-amd64"' >> "$BASH_ENV"
+          echo "export SPARK=\"${SPARK}\"" >> "$BASH_ENV"
+          echo "export JAVA=\"${JAVA}\"" >> "$BASH_ENV"
+          echo "export JAVA_BIN=\"${JAVA_BIN}\"" >> "$BASH_ENV"
+          echo "export JAVAC_BIN=\"${JAVAC_BIN}\"" >> "$BASH_ENV"
+          echo "export SCALA=\"${SCALA}\"" >> "$BASH_ENV"
+          echo "Setting default Java to ${JAVA_BIN}"
+          sudo update-alternatives --set java ${JAVA_BIN}
+          sudo update-alternatives --set javac ${JAVAC_BIN}
   store_submodule_tests:
     parameters:
       submodule:
@@ -146,7 +175,6 @@ jobs:
     resource_class: macos.m1.medium.gen1
     steps:
       - *checkout_project_root
-      - run: RUN_TESTS=true bash iface-py/script/setup-macos.sh
       - run: RUN_TESTS=true bash iface-py/script/build-macos.sh
       - persist_to_workspace:
           root: ./iface-py
@@ -238,13 +266,22 @@ jobs:
         type: string
       py_env:
         type: string
-    docker:
-      - image: cimg/python:<< parameters.py_env >>
+    machine:
+      image: ubuntu-2404:current
     steps:
       - *checkout_project_root
-      - run: python -m pip install tox uv
-      - run: python -m tox r -e "<< parameters.tox_env >>" --notest
-      - run: python -m tox r -e "<< parameters.tox_env >>" --skip-pkg-install
+      - run:
+          name: Install uv and Python << parameters.py_env >>
+          command: |
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            source $HOME/.local/bin/env
+            uv python install << parameters.py_env >>
+      - run:
+          name: Install tox and run tests with uv
+          command: |
+            source $HOME/.local/bin/env
+            uv run --python << parameters.py_env >> --with tox python -m tox r -e "<< parameters.tox_env >>" --notest
+            uv run --python << parameters.py_env >> --with tox python -m tox r -e "<< parameters.tox_env >>" --skip-pkg-install
 
   unit-tests-client-python:
     working_directory: ~/openlineage/client/python
@@ -256,7 +293,7 @@ jobs:
   build-client-python:
     working_directory: ~/openlineage/client/python
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - run: python -m pip install build
@@ -270,7 +307,7 @@ jobs:
   unit-test-integration-common:
     working_directory: ~/openlineage/integration/common
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - attach_workspace:
@@ -281,10 +318,27 @@ jobs:
       - store_test_results:
           path: test-results
 
+  integration-test-integration-dbt:
+    working_directory: ~/openlineage/integration/dbt
+    machine:
+      image: ubuntu-2404:current
+    steps:
+      - *checkout_project_root
+      - run: ../../.circleci/get-docker-compose.sh
+      - run:
+          name: Install uv and Python 3.9
+          command: |
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            source $HOME/.local/bin/env
+            uv python install 3.9
+      - attach_workspace:
+          at: .
+      - run: uv venv && source .venv/bin/activate && ls -halt dist/ && echo "=========" && ls -halt target/wheels/ && uv sync --all-extras --active --inexact --find-links target/wheels/ --find-links dist/ && pytest tests/
+
   build-integration-dbt:
     working_directory: ~/openlineage/integration/dbt
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - run: python setup.py sdist bdist_wheel
@@ -297,7 +351,7 @@ jobs:
   build-integration-common:
     working_directory: ~/openlineage/integration/common
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - run: python setup.py sdist bdist_wheel
@@ -315,7 +369,7 @@ jobs:
         type: string
     working_directory: ~/openlineage/integration/airflow
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - *install_python_client
@@ -331,7 +385,7 @@ jobs:
   build-integration-airflow:
     working_directory: ~/openlineage/integration/airflow
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - *install_python_client
@@ -370,28 +424,10 @@ jobs:
           destination: events
           when: always
 
-  integration-test-integration-airflow-failure:
-    parameters:
-      failure-type:
-        type: string
-    working_directory: ~/openlineage/integration/
-    machine:
-      image: ubuntu-2404:current
-    steps:
-      - *checkout_project_root
-      - run: ../.circleci/get-docker-compose.sh
-      - run: cp -r ../client/python python
-      - attach_workspace:
-          at: .
-      - run: AIRFLOW_IMAGE=apache/airflow:2.3.4-python3.8 ./airflow/tests/integration/docker/up-failure.sh << parameters.failure-type >>
-      - store_artifacts:
-          path: airflow/tests/integration/failures/airflow/logs
-          destination: airflow-logs
-
   unit-test-integration-dagster:
     working_directory: ~/openlineage/integration/dagster
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - *install_python_client
@@ -403,7 +439,7 @@ jobs:
   build-integration-dagster:
     working_directory: ~/openlineage/integration/dagster
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - *install_python_client
@@ -417,7 +453,7 @@ jobs:
   release-python:
     working_directory: ~/openlineage
     docker:
-      - image: cimg/python:3.8
+      - image: cimg/python:3.9
     steps:
       - *checkout_project_root
       - attach_workspace:
@@ -462,16 +498,18 @@ jobs:
       - store_test_results:
           path: build/test-results/test
       - store_test_results:
-          path: transports-dataplex/build/test-results/test
+          path: transports-gcplineage/build/test-results/test
       - store_test_results:
           path: transports-gcs/build/test-results/test
       - store_test_results:
           path: transports-s3/build/test-results/test
+      - store_test_results:
+          path: transports-datazone/build/test-results/test
       - store_artifacts:
           path: build/reports/tests/test
           destination: test-report
       - store_artifacts:
-          path: transports-dataplex/build/reports/tests/test
+          path: transports-gcplineage/build/reports/tests/test
           destination: test-report
       - store_artifacts:
           path: transports-gcs/build/reports/tests/test
@@ -480,19 +518,25 @@ jobs:
           path: transports-s3/build/reports/tests/test
           destination: test-report
       - store_artifacts:
+          path: transports-datazone/build/reports/tests/test
+          destination: test-report
+      - store_artifacts:
           path: build/reports/tests/pmd
           destination: pmd-report
       - store_artifacts:
           path: build/libs
           destination: libs
       - store_artifacts:
-          path: transports-dataplex/build/libs
+          path: transports-gcplineage/build/libs
           destination: libs
       - store_artifacts:
           path: transports-gcs/build/libs
           destination: libs
       - store_artifacts:
           path: transports-s3/build/libs
+          destination: libs
+      - store_artifacts:
+          path: transports-datazone/build/libs
           destination: libs
       - save_cache:
           key: v1-client-java-{{ checksum "/tmp/checksum.txt" }}
@@ -517,23 +561,26 @@ jobs:
           path: ./build/libs
           destination: java-client-artifacts
       - store_artifacts:
-          path: ./transports-dataplex/build/libs
-          destination: transports-dataplex-artifacts
+          path: ./transports-gcplineage/build/libs
+          destination: transports-gcplineage-artifacts
       - store_artifacts:
           path: ./transports-gcs/build/libs
           destination: transports-gcs-artifacts
       - store_artifacts:
           path: ./transports-s3/build/libs
           destination: transports-s3-artifacts
+      - store_artifacts:
+          path: ./transports-datazone/build/libs
+          destination: transports-datazone-artifacts
       - save_cache:
           key: v1-release-client-java-{{ checksum "/tmp/checksum.txt" }}
           paths:
             - ~/.m2
-
+  # SPARK
   release-integration-spark:
     working_directory: ~/openlineage/integration/spark
-    docker:
-      - image: cimg/openjdk:17.0
+    machine:
+      image: ubuntu-2404:current
     steps:
       - *checkout_project_root
       - run:
@@ -544,15 +591,16 @@ jobs:
             - v1-release-client-java-{{ checksum "/tmp/checksum.txt" }}
       - attach_workspace:
           at: ~/
+      - set_java_version
       - run: |
           # Get, then decode the GPG private key used to sign *.jar
           export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
-          export RELEASE_PASSWORD=$(echo $OSSRH_TOKEN_PASSWORD)
-          export RELEASE_USERNAME=$(echo $OSSRH_TOKEN_USERNAME)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
 
           # Publish *.jar
-          ./gradlew --no-daemon --console=plain clean publishToSonatype closeAndReleaseSonatypeStagingRepository --info -Pscala.binary.version=2.12 -Pjava.compile.home=/usr/local/jdk-17.0.11
-          ./gradlew --no-daemon --console=plain clean publishToSonatype closeAndReleaseSonatypeStagingRepository --info -Pscala.binary.version=2.13 -Pjava.compile.home=/usr/local/jdk-17.0.11
+          ./gradlew --no-daemon --console=plain clean publishToSonatype closeAndReleaseSonatypeStagingRepository --info -Pscala.binary.version=2.12 -Pjava.compile.home=${JAVA17_HOME}
+          ./gradlew --no-daemon --console=plain clean publishToSonatype closeAndReleaseSonatypeStagingRepository --info -Pscala.binary.version=2.13 -Pjava.compile.home=${JAVA17_HOME}
       - store_artifacts:
           path: ./build/libs
           destination: spark-client-artifacts
@@ -584,8 +632,8 @@ jobs:
       - run: |
           # Get, then decode the GPG private key used to sign *.jar
           export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
-          export RELEASE_PASSWORD=$(echo $OSSRH_TOKEN_PASSWORD)
-          export RELEASE_USERNAME=$(echo $OSSRH_TOKEN_USERNAME)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
                   
           ./gradlew --console=plain javadoc sourceJar shadowJar -Pscala.binary.version=<< parameters.scala >> -Pjava.compile.home=/usr/lib/jvm/java-17-openjdk-amd64
           ./gradlew --console=plain publishToMavenLocal -Pscala.binary.version=<< parameters.scala >> -Pjava.compile.home=/usr/lib/jvm/java-17-openjdk-amd64
@@ -620,24 +668,8 @@ jobs:
           command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
       - attach_workspace:
           at: ~/
-      - run:
-          name: Spark & Java version Variable
-          command: |
-            JAVA=$(echo << parameters.env-variant >> | cut -d '-' -f 1 | cut -d ':' -f 2)
-            SPARK=$(echo << parameters.env-variant >> | cut -d '-' -f 2 | cut -d ':' -f 2)
-            SCALA=$(echo << parameters.env-variant >> | cut -d '-' -f 3 | cut -d ':' -f 2)
-            echo spark=$SPARK java=$JAVA scala=$SCALA
-            JAVA8_HOME='/usr/lib/jvm/java-8-openjdk-amd64'
-            JAVA17_HOME='/usr/lib/jvm/java-17-openjdk-amd64'
-
-            echo 'export JAVA17_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> "$BASH_ENV"
-            echo 'export SPARK='${SPARK} >> "$BASH_ENV"
-            echo 'export JAVA_BIN='$([ "$JAVA" = "17" ] && echo "$JAVA17_HOME/bin/java" || echo "$JAVA8_HOME/jre/bin/java") >> "$BASH_ENV"
-            echo 'export JAVAC_BIN='$([ "$JAVA" = "17" ] && echo "$JAVA17_HOME/bin/javac" || echo "$JAVA8_HOME/bin/javac") >> "$BASH_ENV"
-            echo 'export SCALA='${SCALA} >> "$BASH_ENV"
-            echo "${JAVA}"
-            echo "${JAVA_BIN}"
-            echo "${JAVAC_BIN}"
+      - set_java_spark_scala_version:
+            env-variant: << parameters.env-variant >>
       - restore_cache:
           keys:
             - v1-integration-spark-{{ checksum "/tmp/checksum.txt" }}
@@ -668,6 +700,8 @@ jobs:
           submodule: spark35
       - store_submodule_tests:
           submodule: spark40
+      - store_submodule_tests:
+          submodule: vendor/iceberg
       - store_artifacts:
           path: build/reports/tests/pmd
           destination: pmd-report
@@ -689,33 +723,15 @@ jobs:
       - run:
           name: Generate cache key
           command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
-      - run:
-          name: Spark & Java version Variable
-          command: |
-            JAVA=$(echo << parameters.env-variant >> | cut -d '-' -f 1 | cut -d ':' -f 2)
-            SPARK=$(echo << parameters.env-variant >> | cut -d '-' -f 2 | cut -d ':' -f 2)
-            SCALA=$(echo << parameters.env-variant >> | cut -d '-' -f 3 | cut -d ':' -f 2)
-            echo spark=$SPARK java=$JAVA scala=$SCALA
-            JAVA8_HOME='/usr/lib/jvm/java-8-openjdk-amd64'
-            JAVA17_HOME='/usr/lib/jvm/java-17-openjdk-amd64'
-
-            echo 'export JAVA17_HOME=/usr/lib/jvm/java-17-openjdk-amd64' >> "$BASH_ENV"
-            echo 'export SPARK_VERSION_VAR='${SPARK} >> "$BASH_ENV"
-            echo 'export SCALA='${SCALA} >> "$BASH_ENV"
-            echo 'export JAVA_BIN='$([ "$JAVA" = "17" ] && echo "$JAVA17_HOME/bin/java" || echo "$JAVA8_HOME/jre/bin/java") >> "$BASH_ENV"
-            echo 'export JAVAC_BIN='$([ "$JAVA" = "17" ] && echo "$JAVA17_HOME/bin/javac" || echo "$JAVA8_HOME/bin/javac") >> "$BASH_ENV"
-            echo $JAVA_BIN
+      - set_java_spark_scala_version:
+            env-variant: << parameters.env-variant >>
       - run: mkdir -p app/build/gcloud && echo $GCLOUD_SERVICE_KEY > app/build/gcloud/gcloud-service-key.json && chmod 644 app/build/gcloud/gcloud-service-key.json
       - restore_cache:
           keys:
             - v1-integration-spark-{{ checksum "/tmp/checksum.txt" }}
       - attach_workspace:
           at: ~/
-      - run: |
-          echo "Setting default Java to ${JAVA_BIN}"
-          sudo update-alternatives --set java ${JAVA_BIN}
-          sudo update-alternatives --set javac ${JAVAC_BIN}
-      - run: ./gradlew --no-daemon --console=plain integrationTest -x test -Pspark.version=${SPARK_VERSION_VAR} -Pscala.binary.version=${SCALA} -Pjava.compile.home=${JAVA17_HOME}
+      - run: ./gradlew --no-daemon --console=plain integrationTest -x test -Pspark.version=${SPARK} -Pscala.binary.version=${SCALA} -Pjava.compile.home=${JAVA17_HOME}
       - run: ./gradlew --no-daemon --console=plain jacocoTestReport -Pscala.binary.version=${SCALA} -Pjava.compile.home=${JAVA17_HOME}
       - store_test_results:
           path: app/build/test-results/integrationTest
@@ -751,8 +767,8 @@ jobs:
       - run: |
           # Get, then decode the GPG private key used to sign *.jar
           export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
-          export RELEASE_PASSWORD=$(echo $OSSRH_TOKEN_PASSWORD)
-          export RELEASE_USERNAME=$(echo $OSSRH_TOKEN_USERNAME)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
 
           ./gradlew --console=plain publishToMavenLocal --info
       - persist_to_workspace:
@@ -832,8 +848,8 @@ jobs:
       - run: |
           # Get, then decode the GPG private key used to sign *.jar
           export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
-          export RELEASE_PASSWORD=$(echo $OSSRH_TOKEN_PASSWORD)
-          export RELEASE_USERNAME=$(echo $OSSRH_TOKEN_USERNAME)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
 
           ./gradlew --console=plain publishToSonatype closeAndReleaseSonatypeStagingRepository --info
       - store_artifacts:
@@ -846,7 +862,7 @@ jobs:
 
   integration-test-databricks-integration-spark:
     parameters:
-      spark-version:
+      env-variant:
         type: string
     working_directory: ~/openlineage/integration/spark
     machine:
@@ -871,20 +887,23 @@ jobs:
                   - v1-integration-spark-{{ checksum "/tmp/checksum.txt" }}
             - attach_workspace:
                 at: ~/
-            - set_java_version
-            - run: |
-                sudo update-alternatives --set java ${JAVA_BIN}
-                sudo update-alternatives --set javac ${JAVAC_BIN}
-            - run: ./gradlew --console=plain shadowJar -x test -Pjava.compile.home=${JAVA17_HOME}
-            - run: ./gradlew --no-daemon --console=plain databricksIntegrationTest -x test   -Pspark.version=<< parameters.spark-version >> -PdatabricksHost=$DATABRICKS_HOST -PdatabricksToken=$DATABRICKS_TOKEN -Pjava.compile.home=${JAVA17_HOME}
+            - set_java_spark_scala_version:
+                  env-variant: << parameters.env-variant >>
+            - run: mkdir -p app/build/logs
+            - run: mkdir -p app/build/events
+            - run: ./gradlew --console=plain clean shadowJar -x test -Pjava.compile.home=${JAVA17_HOME}
+            - run: ./gradlew --no-daemon --console=plain databricksIntegrationTest -x test -Pspark.version=${SPARK} -Pscala.binary.version=${SCALA} -Pjava.compile.home=${JAVA17_HOME} -Dopenlineage.tests.databricks.workspace.host=$DATABRICKS_HOST -Dopenlineage.tests.databricks.workspace.token=$DATABRICKS_TOKEN
             - store_test_results:
                 path: app/build/test-results/databricksIntegrationTest
             - store_artifacts:
                 path: app/build/reports/tests/databricksIntegrationTest
                 destination: test-report
             - store_artifacts:
-                path: app/build/cluster-log4j.log
-                destination: cluster-log4j.log
+                path: app/build/logs
+                destination: cluster-logs
+            - store_artifacts:
+                path: app/build/events
+                destination: events
             - save_cache:
                 key: v1-databricks-integration-spark-{{ checksum "/tmp/checksum.txt" }}
                 paths:
@@ -949,6 +968,164 @@ jobs:
                 event: pass
                 template: basic_success_1
 
+  # HIVE
+
+  release-integration-hive:
+    working_directory: ~/openlineage/integration/hive
+    machine:
+      image: ubuntu-2404:current
+    steps:
+      - *checkout_project_root
+      - run:
+          name: Generate cache key
+          command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
+      - restore_cache:
+          keys:
+            - v1-release-client-java-{{ checksum "/tmp/checksum.txt" }}
+      - attach_workspace:
+          at: ~/
+      - set_java_version
+      - run: |
+          # Get, then decode the GPG private key used to sign *.jar
+          export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
+
+          # Publish *.jar
+          ./gradlew --no-daemon --console=plain clean publishToSonatype closeAndReleaseSonatypeStagingRepository
+          ./gradlew --no-daemon --console=plain clean publishToSonatype closeAndReleaseSonatypeStagingRepository
+      - store_artifacts:
+          path: ./build/libs
+          destination: hive-client-artifacts
+
+  build-integration-hive:
+    working_directory: ~/openlineage/integration/hive
+    parameters:
+      release:
+        type: boolean
+        default: false
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
+    environment:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - *checkout_project_root
+      - run:
+          name: Generate cache key
+          command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
+      - set_java_version:
+          java_version: "8"
+      - restore_cache:
+          keys:
+            - v1-integration-hive-{{ checksum "/tmp/checksum.txt" }}
+      - attach_workspace:
+          at: ~/
+      - run: |
+          # Get, then decode the GPG private key used to sign *.jar
+          export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
+                  
+          ./gradlew --console=plain javadoc sourceJar shadowJar 
+          ./gradlew --console=plain publishToMavenLocal
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .m2/repository/io/openlineage/openlineage-hive
+            - openlineage/integration/hive/build-cache
+            - openlineage/integration/hive/build/libs
+      - store_artifacts:
+          path: build/libs
+          destination: libs
+      - save_cache:
+          key: v1-integration-hive-{{ checksum "/tmp/checksum.txt" }}
+          paths:
+            - ~/.gradle
+
+  test-integration-hive:
+    working_directory: ~/openlineage/integration/hive
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
+    environment:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - *checkout_project_root
+      - run:
+          name: Generate cache key
+          command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
+      - attach_workspace:
+          at: ~/
+      - set_java_version:
+          java_version: "8"
+      - restore_cache:
+          keys:
+            - v1-integration-hive-{{ checksum "/tmp/checksum.txt" }}
+      - run: |
+          echo "Setting default Java to ${JAVA_BIN}"
+          sudo update-alternatives --set java ${JAVA_BIN}
+          sudo update-alternatives --set javac ${JAVAC_BIN}
+      - run: ./gradlew --no-daemon --console=plain --stacktrace build check
+      - run:
+          when: on_fail
+          command: cat build/test-results/test/TEST-*.xml
+      - run: ./gradlew --no-daemon --console=plain jacocoTestReport
+      - store_submodule_tests:
+          submodule: hive-openlineage-hook
+      - store_artifacts:
+          path: build/reports/tests/pmd
+          destination: pmd-report
+
+  integration-test-integration-hive:
+    working_directory: ~/openlineage/integration/hive
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
+    environment:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - *checkout_project_root
+      - run:
+          name: Generate cache key
+          command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
+      - restore_cache:
+          keys:
+            - v1-integration-hive-{{ checksum "/tmp/checksum.txt" }}
+      - attach_workspace:
+          at: ~/
+      - run: ./gradlew --no-daemon --console=plain integrationTest -x test
+      - run: ./gradlew --no-daemon --console=plain jacocoTestReport
+      - store_test_results:
+          path: app/build/test-results/integrationTest
+      - store_artifacts:
+          path: app/build/reports/tests/integrationTest
+          destination: test-report
+      - save_cache:
+          key: v1-integration-hive-{{ checksum "/tmp/checksum.txt" }}
+          paths:
+            - ~/.gradle
+
+  jar-verification-hive:
+    working_directory: ~/openlineage/integration/hive
+    machine:
+      image: ubuntu-2404:current
+    resource_class: medium
+    environment:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - *checkout_project_root
+      - run:
+          name: Generate cache key
+          command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
+      - restore_cache:
+          keys:
+            - v1-integration-hive-{{ checksum "/tmp/checksum.txt" }}
+      - set_java_version
+      - attach_workspace:
+          at: ~/
+      - run: ./gradlew --no-daemon --console=plain clean jarVerification
+
   # FLINK
 
   release-integration-flink:
@@ -990,18 +1167,27 @@ jobs:
             - v1-integration-flink-{{ checksum "/tmp/checksum.txt" }}
       - attach_workspace:
           at: ~/
-      - set_java_version
       - run: chmod -R 777 data/iceberg/db
-      - run: ./gradlew --console=plain examples:stateful:build -Pflink.version=<< parameters.flink-version >>
-      - run: ./gradlew --no-daemon --console=plain integrationTest --i -Pflink.version=<< parameters.flink-version >>
+      - run: |
+          # Get, then decode the GPG private key used to sign *.jar
+          export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
+          export RELEASE_PASSWORD=$(echo $MAVEN_CENTRAL_TOKEN_PASSWORD)
+          export RELEASE_USERNAME=$(echo $MAVEN_CENTRAL_TOKEN_USERNAME)
+          
+          ./gradlew --no-daemon --console=plain integrationTest --i -Pflink.version=<< parameters.flink-version >>
       - run:
           when: on_fail
           command: cat app/build/test-results/integrationTest/TEST-*.xml
       - run: ./gradlew --no-daemon --console=plain jacocoTestReport
       - store_test_results:
-          path: app/build/test-results/integrationTest
+          path: flink1/build/test-results/integrationTest
       - store_artifacts:
-          path: app/build/reports/tests/integrationTest
+          path: flink1/build/reports/tests/integrationTest
+          destination: test-report
+      - store_test_results:
+          path: flink2/build/test-results/integrationTest
+      - store_artifacts:
+          path: flink2/build/reports/tests/integrationTest
           destination: test-report
       - save_cache:
           key: v1-integration-flink-{{ checksum "/tmp/checksum.txt" }}
@@ -1062,11 +1248,16 @@ jobs:
           command: cat build/test-results/test/TEST-*.xml
       - run: ./gradlew --no-daemon --console=plain jacocoTestReport
       - run: ./gradlew --console=plain javadoc
-      - store_test_results:
-          path: app/build/test-results/test
-      - store_artifacts:
-          path: app/build/reports/tests/test
-          destination: test-report
+      - store_submodule_tests:
+          submodule: flink1
+      - store_submodule_tests:
+          submodule: flink2
+      - store_submodule_tests:
+          submodule: flink115
+      - store_submodule_tests:
+          submodule: flink117
+      - store_submodule_tests:
+          submodule: flink118
       - save_cache:
           key: v1-integration-flink-{{ checksum "/tmp/checksum.txt" }}
           paths:
@@ -1081,71 +1272,6 @@ jobs:
       - run: bundle install
       - run: bundle exec rake test
 
-  build-proxy-backend:
-    working_directory: ~/openlineage/proxy/backend
-    docker:
-      - image: cimg/openjdk:17.0
-    steps:
-      - *checkout_project_root
-      - run:
-          name: Generate cache key
-          command: ./../../.circleci/checksum.sh /tmp/checksum.txt $CIRCLE_BRANCH
-      - restore_cache:
-          keys:
-            - v1-proxy-{{ checksum "/tmp/checksum.txt" }}
-      - run: ./gradlew --no-daemon --console=plain --stacktrace build
-      - run: ./gradlew --no-daemon --console=plain jacocoTestReport
-      - run: bash <(curl -s https://codecov.io/bash)
-      - store_test_results:
-          path: proxy/build/test-results/test
-      - store_artifacts:
-          path: build/reports/tests/test
-          destination: test-report
-      - save_cache:
-          key: v1-proxy-{{ checksum "/tmp/checksum.txt" }}
-          paths:
-            - ~/.gradle
-
-  build-image-proxy-backend:
-    working_directory: ~/openlineage/proxy/backend
-    machine:
-      image: ubuntu-2404:current
-    steps:
-      - *checkout_project_root
-      - run: docker build --no-cache --tag "openlineage/proxy:${CIRCLE_SHA1}" .
-      - run: docker save -o proxy.tar "openlineage/proxy:${CIRCLE_SHA1}"
-      - store_artifacts:
-          path: proxy.tar
-
-  release-proxy-backend:
-    working_directory: ~/openlineage/proxy/backend
-    docker:
-      - image: cimg/openjdk:17.0
-    steps:
-      - *checkout_project_root
-      - run: |
-          # Get, then decode the GPG private key used to sign *.jar
-          export ORG_GRADLE_PROJECT_signingKey=$(echo $GPG_SIGNING_KEY | base64 -d)
-          export RELEASE_PASSWORD=$(echo $OSSRH_TOKEN_PASSWORD)
-          export RELEASE_USERNAME=$(echo $OSSRH_TOKEN_USERNAME)
-
-          # publish jar to maven local so it can be found by dependents
-          ./gradlew --info --console=plain publishToMavenLocal
-
-          # Publish *.jar
-          ./gradlew --info --console=plain publishToSonatype closeAndReleaseSonatypeStagingRepository
-
-  release-docker-proxy-backend:
-    working_directory: ~/openlineage/proxy/backend
-    machine:
-      image: ubuntu-2404:current
-    steps:
-      - *checkout_project_root
-      - run: |
-          ./docker/login.sh
-          if [ -n "$CIRCLE_TAG" ]; then
-            ./docker/build-and-push-proxy.sh $CIRCLE_TAG
-          fi
   run-pre-commit:
     # this job run pre-commit for Python client only
     # add dependency to other files when pre-commit runs related checks
@@ -1160,7 +1286,7 @@ jobs:
       - restore_cache:
           name: Restore pre-commit cache
           keys:
-            - v1.4-precommit-deps-{{ checksum ".pre-commit-config.yaml" }}
+            - v1.0-prek-deps-{{ checksum ".pre-commit-config.yaml" }}
       - restore_cache:
           name: Restore pmd cache
           keys:
@@ -1173,25 +1299,25 @@ jobs:
             - v1.1-gradle-pre-commit-
 
       - run:
-          name: Install Python3.8 Dependencies
+          name: Install Python3.9 Dependencies
           command: |
             python -m venv venv
             . venv/bin/activate
-            pip3 install pre-commit
+            pip3 install prek
             # Install the hooks now so that they'll be cached
-            pre-commit install-hooks
+            prek install-hooks
 
       - save_cache:
           paths:
-            - ~/.cache/pre-commit
-          key: v1.4-precommit-deps-{{ checksum ".pre-commit-config.yaml" }}
+            - ~/.cache/prek
+          key: v1.0-prek-deps-{{ checksum ".pre-commit-config.yaml" }}
           name: Save pre-commit cache
 
       - run:
-          name: Run pre-commit
+          name: Run prek
           command: |
             . venv/bin/activate
-            pre-commit run --show-diff-on-failure --all-files
+            prek run --show-diff-on-failure --all-files
 
       - save_cache:
           paths:

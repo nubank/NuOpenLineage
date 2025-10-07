@@ -8,7 +8,7 @@ Spark ushered in a brand new age of data democratization... and left us with a m
 
 <!--truncate-->
 
-## The Age of Data Democratization
+### The Age of Data Democratization
 
 In 2015, Apache Spark seemed to be taking over the world. Many of us had spent the prior few years moving our large
 datasets out of the Data Warehouse into "Data Lakes"- repositories of structured and unstructured data in
@@ -29,7 +29,7 @@ tools to process raw data in object stores without the dependency on software en
 attracted to its ability to perform multiple operations on data without the I/O overhead of alternatives, like Pig or
 Hive, data scientists were thrilled to start piping that data through their NumPy and Pandas scripts. 
 
-## A Colossal Mess
+### A Colossal Mess
 
 Of course, the natural consequence of this data democratization is that it becomes difficult to keep track of who is
 using the data and for what purpose. Hidden dependencies and Hyrum’s Law suddenly meant that changes to the data schema
@@ -43,7 +43,7 @@ both producers and consumers of data about the state of that data and the potent
 bugs. Naturally, support for Apache Spark seemed like a good idea and, while the Spark 2.4 branch has been supported for
 some time, the recent OpenLineage 0.3 release has explicit support for Spark 3.1. 🎉 
 
-## Getting Started
+### Getting Started
 
 Our approach to integrating with Spark is not super novel nor is it complicated to integrate into your own system. Spark
 has had a SparkListener interface since before the 1.x days. If you're a heavy Spark user, it's likely you're already
@@ -51,7 +51,7 @@ familiar with it and how it's used in Spark applications. OpenLineage integrates
 interface and collecting information about jobs that are executed inside a Spark application. To activate the
 listener, add the following properties to your Spark configuration:
 ```
-spark.jars.packages     io.openlineage:openlineage-spark:0.3.+
+spark.jars.packages     io.openlineage:openlineage-spark:{{PREPROCESSOR:OPENLINEAGE_VERSION}}
 spark.extraListeners	io.openlineage.spark.agent.OpenLineageSparkListener
 ```
 This can be added to your cluster’s `spark-defaults.conf` file, in which case it will record lineage for every job executed on the cluster, or added to specific jobs on submission via the `spark-submit` command. Once the listener is activated, it needs to know where to report lineage events, as well as the namespace of your jobs. Add the following additional configuration lines to your `spark-defaults.conf` file or your Spark submission script:
@@ -60,7 +60,7 @@ spark.openlineage.transport.url     {your.openlineage.url}
 spark.openlineage.transport.type    'http'
 spark.openlineage.namespace	        {your.openlineage.namespace}
 ```
-## The Demo
+### The Demo
 
 Trying out the Spark integration is super easy if you already have Docker Desktop and git installed. To follow along
 with this demo, you’ll also need a Google Cloud account and a Service Account JSON key file for an account that has
@@ -122,7 +122,7 @@ spark = (SparkSession.builder.master('local').appName('openlineage_spark_test')
              .config('spark.jars', ",".join(files))
              
              # Install and set up the OpenLineage listener
-             .config('spark.jars.packages', 'io.openlineage:openlineage-spark:0.3.+')
+             .config('spark.jars.packages', 'io.openlineage:openlineage-spark:{{PREPROCESSOR:OPENLINEAGE_VERSION}})
              .config('spark.extraListeners', 'io.openlineage.spark.agent.OpenLineageSparkListener')
              .config('spark.openlineage.transport.url', 'http://marquez-api:5000')
              .config('spark.openlineage.transport.type', 'http')
@@ -211,7 +211,7 @@ For exploring visually, we’ll also want to start up the Marquez web project. W
 containers, run the following command in a new terminal:
 
 ```bash
-docker run --network spark_default -p 3000:3000 -e MARQUEZ_HOST=marquez-api -e MARQUEZ_PORT=5000 --link marquez-api:marquez-api marquezproject/marquez-web:0.19.1
+docker run --network spark_default -p 3000:3000 -e MARQUEZ_HOST=marquez-api -e MARQUEZ_PORT=5000 -e WEB_PORT=3000 --link marquez-api:marquez-api marquezproject/marquez-web:0.19.1
 ```
 
 Now open a new browser tab and navigate to `http://localhost:3000`. You should see a screen like the following:

@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -13,6 +13,7 @@ import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
 
+import io.openlineage.client.SchemaParser.PrimitiveType;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URI;
@@ -24,6 +25,8 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.lang.model.element.Modifier;
@@ -175,6 +178,57 @@ public class JavaPoetGenerator {
     }
   }
 
+  private MethodSpec equalsMethod(ObjectResolvedType type) {
+    Builder equals = MethodSpec.methodBuilder("equals");
+    equals.addAnnotation(Override.class);
+    equals.returns(TypeName.BOOLEAN);
+    equals.addModifiers(PUBLIC);
+    List<String> fields = new ArrayList<>();
+    handleProperties(type, new ResolvedFieldHandler() {
+
+      @Override
+      public void onDeleted(ResolvedField f) {
+        fields.add(f.getName());
+      }
+
+      @Override
+      public void onField(ResolvedField f) {
+        fields.add(f.getName());
+      }
+    });
+    equals.addParameter(TypeName.OBJECT, "o");
+    equals.addCode("if (this == o) return true;\n");
+    equals.addCode("if (o == null || getClass() != o.getClass()) return false;\n");
+    equals.addCode("$N that = ($N) o;\n", type.getName(), type.getName());
+    fields.forEach(f ->
+        equals.addCode("if (!$T.equals($N, that.$N)) return false;\n", Objects.class, f, f));
+    equals.addCode("return true;");
+
+    return equals.build();
+  }
+
+  private MethodSpec hashCodeMethod(ObjectResolvedType type) {
+    Builder hashCode = MethodSpec.methodBuilder("hashCode");
+    hashCode.addAnnotation(Override.class);
+    hashCode.returns(TypeName.INT);
+    hashCode.addModifiers(PUBLIC);
+    List<String> fields = new ArrayList<>();
+    handleProperties(type, new ResolvedFieldHandler() {
+
+      @Override
+      public void onDeleted(ResolvedField f) {
+       fields.add(f.getName());
+      }
+
+      @Override
+      public void onField(ResolvedField f) {
+        fields.add(f.getName());
+      }
+    });
+    hashCode.addCode("return $T.hash($N);\n", Objects.class, String.join(", ", fields));
+    return hashCode.build();
+  }
+
   private MethodSpec modelConstructor(ObjectResolvedType type) {
     Builder constructor = MethodSpec.constructorBuilder();
     if (type.getName().equals("CustomFacet") || server) {
@@ -204,6 +258,15 @@ public class JavaPoetGenerator {
       public void onDeleted(ResolvedField f) {
         // deleted is undefined by default
         constructor.addCode("this._deleted = null;\n");
+      }
+
+      /**
+       * Constant should be set in the constructor but not passed as a constructor arg
+       * @param f
+       */
+      @Override
+      public void onConstantField(ResolvedField f) {
+        constructor.addCode("this.$N = \"$N\";\n", f.getName(), f.getConstantValue().get());
       }
 
       @Override
@@ -295,6 +358,8 @@ public class JavaPoetGenerator {
     modelClassBuilder.addAnnotation(jsonPropertyOrder.build());
     MethodSpec modelConstructor = modelConstructor(type);
     modelClassBuilder.addMethod(modelConstructor);
+    modelClassBuilder.addMethod(equalsMethod(type));
+    modelClassBuilder.addMethod(hashCodeMethod(type));
     return modelClassBuilder.build();
   }
 
@@ -439,6 +504,7 @@ public class JavaPoetGenerator {
     default void onSchemaURL(ResolvedField f) {}
     default void onDeleted(ResolvedField f) {}
     void onField(ResolvedField f);
+    default void onConstantField(ResolvedField f) {}
   }
 
   private void handleField(ResolvedField f, ResolvedFieldHandler h) {
@@ -448,6 +514,8 @@ public class JavaPoetGenerator {
       h.onProducer(f);
     } else if (isADeletedField(f)) {
       h.onDeleted(f);
+    } else if (f.getConstantValue().isPresent()) {
+      h.onConstantField(f);
     } else {
       h.onField(f);
     }
@@ -481,6 +549,11 @@ public class JavaPoetGenerator {
           .addModifiers(ABSTRACT, PUBLIC)
           .build();
       interfaceBuilder.addMethod(getter);
+
+      if (f.getConstantValue().isPresent()) {
+        // skip builder for constants
+        continue;
+      }
 
       if (isADeletedField(f)) {
         // add isDeleted() method in addition to get_deleted()

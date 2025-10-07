@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -9,7 +9,6 @@ import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.client.utils.filesystem.FilesystemDatasetUtils;
 import java.net.URI;
 import java.util.Optional;
-import java.util.stream.Stream;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
@@ -25,7 +24,6 @@ import org.apache.spark.sql.internal.StaticSQLConf;
 @SuppressWarnings("PMD.AvoidLiteralsInIfCondition")
 public class PathUtils {
   private static final String DEFAULT_DB = "default";
-  private static final String HIVE_METASTORE_GLUE_CATALOG_ID_KEY = "hive.metastore.glue.catalogid";
   public static final String GLUE_TABLE_PREFIX = "table/";
 
   public static DatasetIdentifier fromPath(Path path) {
@@ -40,18 +38,27 @@ public class PathUtils {
    * Create DatasetIdentifier from CatalogTable, using storage's locationURI if it exists. In other
    * way, use defaultTablePath.
    */
-  @SneakyThrows
   public static DatasetIdentifier fromCatalogTable(
       CatalogTable catalogTable, SparkSession sparkSession) {
     URI locationUri;
-    if (catalogTable.storage() != null && catalogTable.storage().locationUri().isDefined()) {
-      locationUri = catalogTable.storage().locationUri().get();
-    } else {
-      locationUri = getDefaultLocationUri(sparkSession, catalogTable.identifier());
-    }
-    DatasetIdentifier locationDataset = fromURI(locationUri);
-    // perform normalization
-    locationUri = FilesystemDatasetUtils.toLocation(locationDataset);
+    locationUri = getLocationUri(catalogTable, sparkSession);
+    return fromCatalogTable(catalogTable, sparkSession, locationUri);
+  }
+
+  /** Create DatasetIdentifier from CatalogTable, using provided location. */
+  @SneakyThrows
+  public static DatasetIdentifier fromCatalogTable(
+      CatalogTable catalogTable, SparkSession sparkSession, Path location) {
+    return fromCatalogTable(catalogTable, sparkSession, location.toUri());
+  }
+
+  /** Create DatasetIdentifier from CatalogTable, using provided location. */
+  @SneakyThrows
+  public static DatasetIdentifier fromCatalogTable(
+      CatalogTable catalogTable, SparkSession sparkSession, URI location) {
+    // perform URL normalization
+    DatasetIdentifier locationDataset = fromURI(location);
+    URI locationUri = FilesystemDatasetUtils.toLocation(locationDataset);
 
     Optional<DatasetIdentifier> symlinkDataset = Optional.empty();
 
@@ -60,7 +67,7 @@ public class PathUtils {
     Configuration hadoopConf = sparkContext.hadoopConfiguration();
 
     Optional<URI> metastoreUri = getMetastoreUri(sparkContext);
-    Optional<String> glueArn = getGlueArn(sparkConf, hadoopConf);
+    Optional<String> glueArn = AwsUtils.getGlueArn(sparkConf, hadoopConf);
 
     if (glueArn.isPresent()) {
       // Even if glue catalog is used, it will have a hive metastore URI
@@ -126,23 +133,7 @@ public class PathUtils {
     return new Path(warehouse, database + ".db", name);
   }
 
-  @SneakyThrows
-  public static URI prepareHiveUri(URI uri) {
-    return new URI("hive", uri.getAuthority(), null, null, null);
-  }
-
-  @SneakyThrows
-  private static Optional<URI> getWarehouseLocation(SparkConf sparkConf, Configuration hadoopConf) {
-    Optional<String> warehouseLocation =
-        SparkConfUtils.findSparkConfigKey(sparkConf, StaticSQLConf.WAREHOUSE_PATH().key());
-    if (!warehouseLocation.isPresent()) {
-      warehouseLocation =
-          SparkConfUtils.findHadoopConfigKey(hadoopConf, "hive.metastore.warehouse.dir");
-    }
-    return warehouseLocation.map(URI::create);
-  }
-
-  private static Optional<URI> getMetastoreUri(SparkContext context) {
+  public static Optional<URI> getMetastoreUri(SparkContext context) {
     // make sure enableHiveSupport is called
     Optional<String> setting =
         SparkConfUtils.findSparkConfigKey(
@@ -154,51 +145,29 @@ public class PathUtils {
   }
 
   @SneakyThrows
-  public static Optional<String> getGlueArn(SparkConf sparkConf, Configuration hadoopConf) {
-    Optional<String> clientFactory =
-        SparkConfUtils.findHadoopConfigKey(hadoopConf, "hive.metastore.client.factory.class");
-    // Fetch from spark config if set.
-    clientFactory =
-        clientFactory.isPresent()
-            ? clientFactory
-            : SparkConfUtils.findSparkConfigKey(sparkConf, "hive.metastore.client.factory.class");
-    if (!clientFactory.isPresent()
-        || !"com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
-            .equals(clientFactory.get())) {
-      return Optional.empty();
+  public static URI prepareHiveUri(URI uri) {
+    return new URI("hive", uri.getAuthority(), null, null, null);
+  }
+
+  @SneakyThrows
+  public static Optional<URI> getWarehouseLocation(SparkConf sparkConf, Configuration hadoopConf) {
+    Optional<String> warehouseLocation =
+        SparkConfUtils.findSparkConfigKey(sparkConf, StaticSQLConf.WAREHOUSE_PATH().key());
+    if (!warehouseLocation.isPresent()) {
+      warehouseLocation =
+          SparkConfUtils.findHadoopConfigKey(hadoopConf, "hive.metastore.warehouse.dir");
     }
+    return warehouseLocation.map(URI::create);
+  }
 
-    Optional<String> region =
-        Optional.ofNullable(System.getenv("AWS_DEFAULT_REGION"))
-            .filter(s -> !s.isEmpty())
-            .map(Optional::of)
-            .orElseGet(() -> Optional.ofNullable(System.getenv("AWS_REGION")));
-
-    Optional<String> accountId =
-        SparkConfUtils.findSparkConfigKey(sparkConf, "spark.glue.accountId");
-    // For AWS Glue catalog in EMR spark
-    // Glue catalog with EMR guide:
-    // https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark-glue.html
-    Optional<String> glueCatalogIdForEMR =
-        SparkConfUtils.findSparkConfigKey(sparkConf, HIVE_METASTORE_GLUE_CATALOG_ID_KEY);
-    // For AWS Glue access in Athena for Spark
-    // Guide: https://docs.aws.amazon.com/athena/latest/ug/spark-notebooks-cross-account-glue.html
-    // spark config "spark.hadoop.hive.metastore.glue.catalogid" is copied to hadoop
-    // "hive.metastore.glue.catalogid" by SparkHadoopUtil (removing the prefix spark.hadoop)
-    Optional<String> glueCatalogIdForAthena =
-        SparkConfUtils.findHadoopConfigKey(hadoopConf, HIVE_METASTORE_GLUE_CATALOG_ID_KEY);
-
-    Optional<String> glueCatalogId =
-        Stream.of(glueCatalogIdForEMR, glueCatalogIdForAthena, accountId)
-            .filter(Optional::isPresent)
-            .findFirst()
-            .orElse(Optional.empty());
-
-    if (!region.isPresent() || !glueCatalogId.isPresent()) {
-      return Optional.empty();
+  private static URI getLocationUri(CatalogTable catalogTable, SparkSession sparkSession) {
+    URI locationUri;
+    if (catalogTable.storage() != null && catalogTable.storage().locationUri().isDefined()) {
+      locationUri = catalogTable.storage().locationUri().get();
+    } else {
+      locationUri = getDefaultLocationUri(sparkSession, catalogTable.identifier());
     }
-
-    return Optional.of("arn:aws:glue:" + region.get() + ":" + glueCatalogId.get());
+    return locationUri;
   }
 
   /** Get DatasetIdentifier name in format database.table or table */

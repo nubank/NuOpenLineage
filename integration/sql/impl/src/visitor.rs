@@ -1,4 +1,4 @@
-// Copyright 2018-2024 contributors to the OpenLineage project
+// Copyright 2018-2025 contributors to the OpenLineage project
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::context::Context;
@@ -135,6 +135,12 @@ impl Visit for TableFactor {
             TableFactor::TableFunction { .. } => {
                 // https://docs.snowflake.com/en/sql-reference/functions-table
                 // We can skip them as we don't support extracting lineage from functions
+                Ok(())
+            }
+            TableFactor::Function { .. } => {
+                // https://github.com/apache/datafusion-sqlparser-rs/pull/1026/files#r1373705587
+                // This variant provides distinct functionality from TableFunction but can be
+                // treated the same here
                 Ok(())
             }
             _ => Err(anyhow!(
@@ -555,9 +561,8 @@ impl Visit for Query {
             context.unset_frame_to_main_body();
         }
 
-        match &self.with {
-            Some(with) => with.visit(context)?,
-            None => (),
+        if let Some(with) = &self.with {
+            with.visit(context)?
         }
         let with_frame = context.pop_frame().unwrap();
 

@@ -1,8 +1,10 @@
 #!/bin/bash
 
+# Copyright 2018-2025 contributors to the OpenLineage project
+# SPDX-License-Identifier: Apache-2.0
+
 set -e
 
-source "$(dirname "${BASH_SOURCE[0]}")/set-java-version.sh"
 JAVA_VERSION=${JAVA_VERSION:-17}
 RULESET_FILE=${RULESET_FILE:-client/java/pmd-openlineage.xml}
 
@@ -21,7 +23,6 @@ for arg in "$@"; do
 done
 
 echo "Using Java version: $JAVA_VERSION"
-
 source "$(dirname "${BASH_SOURCE[0]}")/set-java-version.sh"
 set_java_version "$JAVA_VERSION"
 
@@ -47,11 +48,6 @@ for (( i=1; i <= "$#"; i++ )); do
     fi
 done
 
-# add default ruleset if not specified
-if [[ ! $pc_args == *"-R "* ]]; then
-  pc_args="$pc_args -R ../${RULESET_FILE}"
-fi
-
 # populate list of files to analyse
 files=""
 prefix="../"
@@ -64,4 +60,4 @@ files="${files:1}"
 eol=$'\n'
 echo "${files// /$eol}" > /tmp/list
 
-./pmd/bin/run.sh pmd -f textcolor -min 5 --file-list /tmp/list $pc_args
+./pmd/bin/run.sh pmd -f textcolor -min 5 --file-list /tmp/list -R ../"${RULESET_FILE}"

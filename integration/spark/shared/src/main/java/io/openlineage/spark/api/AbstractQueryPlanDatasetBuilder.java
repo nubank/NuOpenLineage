@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.spark.scheduler.SparkListenerEvent;
 import org.apache.spark.scheduler.SparkListenerJobStart;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import scala.PartialFunction;
@@ -74,6 +75,8 @@ public abstract class AbstractQueryPlanDatasetBuilder<T, P extends LogicalPlan, 
                     .collect(Collectors.toList());
               } else if (PlanUtils.safeIsDefinedAt(visitor, qe.optimizedPlan())) {
                 return PlanUtils.safeApply(visitor, qe.optimizedPlan());
+              } else if (PlanUtils.safeIsDefinedAt(visitor, qe.analyzed())) {
+                return PlanUtils.safeApply(visitor, qe.analyzed());
               } else {
                 return Collections.<D>emptyList();
               }
@@ -86,7 +89,9 @@ public abstract class AbstractQueryPlanDatasetBuilder<T, P extends LogicalPlan, 
     return new QueryPlanVisitor<L, D>(context) {
       @Override
       public boolean isDefinedAt(LogicalPlan x) {
-        return builder.isDefinedAt(event) && isDefinedAtLogicalPlan(x);
+        return !context.getVisitedNodes().alreadyVisited((SparkListenerEvent) event, x)
+            && builder.isDefinedAt(event)
+            && isDefinedAtLogicalPlan(x);
       }
 
       @Override
@@ -94,7 +99,14 @@ public abstract class AbstractQueryPlanDatasetBuilder<T, P extends LogicalPlan, 
         if (!FacetUtils.isFacetDisabled(context, "spark_unknown")) {
           unknownEntryFacetListener.accept(x);
         }
-        return builder.apply(event, (P) x);
+        if (context.getVisitedNodes().alreadyVisited((SparkListenerEvent) event, x)) {
+          return Collections.emptyList();
+        }
+        List<D> result = builder.apply(event, (P) x);
+        if (!result.isEmpty()) {
+          context.getVisitedNodes().addVisitedNodeHash((SparkListenerEvent) event, x);
+        }
+        return result;
       }
 
       @Override

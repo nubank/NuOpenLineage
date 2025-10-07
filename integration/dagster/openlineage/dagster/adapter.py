@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
@@ -238,7 +238,7 @@ class OpenLineageAdapter:
 
     def _emit(self, event: RunEvent):
         self._client.emit(event)
-        log.debug(f"Successfully emitted OpenLineage run event: {event}")
+        log.debug("Successfully emitted OpenLineage run event: %s", event)
 
     @staticmethod
     def _build_run(

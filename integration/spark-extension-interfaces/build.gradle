@@ -1,3 +1,8 @@
+/*
+/* Copyright 2018-2025 contributors to the OpenLineage project
+/* SPDX-License-Identifier: Apache-2.0
+*/
+
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
@@ -41,6 +46,14 @@ pmdMain {
 
 pmdTest {
     dependsOn shadowJar
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 repositories {
@@ -187,6 +200,8 @@ publishing {
 nexusPublishing {
     repositories {
         sonatype {
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
             username = System.getenv('RELEASE_USERNAME')
             password = System.getenv('RELEASE_PASSWORD')
         }
@@ -219,6 +234,7 @@ shadowJar {
         exclude 'io/openlineage/client/circuitBreaker/**'
         exclude 'io/openlineage/client/metrics/**'
         exclude 'io/openlineage/client/transports/**'
+        exclude 'META-INF/services/io.openlineage.client.transports.TransportBuilder'
     }
 
     relocate('io.openlineage.client', 'io.openlineage.spark.shade.client')
@@ -236,6 +252,10 @@ shadowJar {
         )
     }
     zip64 true
+}
+
+tasks.withType(GenerateModuleMetadata.class).configureEach {
+    enabled = false
 }
 
 tasks.register("createVersionProperties") {

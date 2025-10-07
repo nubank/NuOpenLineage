@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -7,7 +7,6 @@ package io.openlineage.spark3.agent.lifecycle.plan;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import io.openlineage.client.OpenLineage;
@@ -15,7 +14,6 @@ import io.openlineage.spark.agent.lifecycle.SparkOpenLineageExtensionVisitorWrap
 import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark3.agent.utils.DataSourceV2RelationDatasetExtractor;
-import io.openlineage.spark3.agent.utils.DatasetVersionDatasetFacetUtils;
 import java.util.List;
 import org.apache.spark.scheduler.SparkListenerApplicationEnd;
 import org.apache.spark.scheduler.SparkListenerApplicationStart;
@@ -66,13 +64,10 @@ class DataSourceV2ScanRelationOnStartInputDatasetBuilderTest {
 
   @Test
   void testApply() {
-    OpenLineage.DatasetFacetsBuilder datasetFacetsBuilder =
-        mock(OpenLineage.DatasetFacetsBuilder.class);
     List<OpenLineage.InputDataset> datasets = mock(List.class);
     DataSourceV2ScanRelation scanRelation = mock(DataSourceV2ScanRelation.class);
     DataSourceV2Relation relation = mock(DataSourceV2Relation.class);
 
-    when(openLineage.newDatasetFacetsBuilder()).thenReturn(datasetFacetsBuilder);
     when(context.getOpenLineage()).thenReturn(openLineage);
     when(scanRelation.relation()).thenReturn(relation);
     when(context.getSparkExtensionVisitorWrapper())
@@ -80,20 +75,11 @@ class DataSourceV2ScanRelationOnStartInputDatasetBuilderTest {
 
     try (MockedStatic<DataSourceV2RelationDatasetExtractor> ignored =
         mockStatic(DataSourceV2RelationDatasetExtractor.class)) {
-      try (MockedStatic<DatasetVersionDatasetFacetUtils> facetUtilsMockedStatic =
-          mockStatic(DatasetVersionDatasetFacetUtils.class)) {
-        when(DataSourceV2RelationDatasetExtractor.extract(
-                factory, context, relation, datasetFacetsBuilder))
-            .thenReturn(datasets);
+      when(DataSourceV2RelationDatasetExtractor.extractIncludingVersionFacet(
+              factory, context, relation))
+          .thenReturn(datasets);
 
-        Assertions.assertThat(builder.apply(scanRelation)).isEqualTo(datasets);
-
-        facetUtilsMockedStatic.verify(
-            () ->
-                DatasetVersionDatasetFacetUtils.includeDatasetVersion(
-                    context, datasetFacetsBuilder, relation),
-            times(1));
-      }
+      Assertions.assertThat(builder.apply(scanRelation)).isEqualTo(datasets);
     }
   }
 }

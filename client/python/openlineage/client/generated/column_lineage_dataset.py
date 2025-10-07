@@ -1,9 +1,9 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 
 import attr
 from openlineage.client.generated.base import DatasetFacet
@@ -38,6 +38,26 @@ class Fields(RedactMixin):
     original data available (like a hash of PII for example)
     """
 
+    def with_additional_properties(self, **kwargs: dict[str, Any]) -> "Fields":
+        """Add additional properties to updated class instance."""
+        current_attrs = [a.name for a in attr.fields(self.__class__)]
+
+        new_class = attr.make_class(
+            self.__class__.__name__,
+            {k: attr.field(default=None) for k in kwargs if k not in current_attrs},
+            bases=(self.__class__,),
+        )
+        new_class.__module__ = self.__class__.__module__
+        attrs = attr.fields(self.__class__)
+        for a in attrs:
+            if not a.init:
+                continue
+            attr_name = a.name  # To deal with private attributes.
+            init_name = a.alias
+            if init_name not in kwargs:
+                kwargs[init_name] = getattr(self, attr_name)
+        return cast(Fields, new_class(**kwargs))
+
 
 @attr.define
 class InputField(RedactMixin):
@@ -55,6 +75,26 @@ class InputField(RedactMixin):
     transformations: list[Transformation] | None = attr.field(factory=list)
     _skip_redact: ClassVar[list[str]] = ["namespace", "name", "field"]
 
+    def with_additional_properties(self, **kwargs: dict[str, Any]) -> "InputField":
+        """Add additional properties to updated class instance."""
+        current_attrs = [a.name for a in attr.fields(self.__class__)]
+
+        new_class = attr.make_class(
+            self.__class__.__name__,
+            {k: attr.field(default=None) for k in kwargs if k not in current_attrs},
+            bases=(self.__class__,),
+        )
+        new_class.__module__ = self.__class__.__module__
+        attrs = attr.fields(self.__class__)
+        for a in attrs:
+            if not a.init:
+                continue
+            attr_name = a.name  # To deal with private attributes.
+            init_name = a.alias
+            if init_name not in kwargs:
+                kwargs[init_name] = getattr(self, attr_name)
+        return cast(InputField, new_class(**kwargs))
+
     @staticmethod
     def _get_schema() -> str:
         return "https://openlineage.io/spec/facets/1-2-0/ColumnLineageDatasetFacet.json#/$defs/InputField"
@@ -62,7 +102,7 @@ class InputField(RedactMixin):
 
 @attr.define
 class Transformation(RedactMixin):
-    type: str
+    type: str  # noqa: A003
     """The type of the transformation. Allowed values are: DIRECT, INDIRECT"""
 
     subtype: str | None = attr.field(default=None)
@@ -75,3 +115,23 @@ class Transformation(RedactMixin):
     """is transformation masking the data or not"""
 
     _skip_redact: ClassVar[list[str]] = ["type", "subtype", "masking"]
+
+    def with_additional_properties(self, **kwargs: dict[str, Any]) -> "Transformation":
+        """Add additional properties to updated class instance."""
+        current_attrs = [a.name for a in attr.fields(self.__class__)]
+
+        new_class = attr.make_class(
+            self.__class__.__name__,
+            {k: attr.field(default=None) for k in kwargs if k not in current_attrs},
+            bases=(self.__class__,),
+        )
+        new_class.__module__ = self.__class__.__module__
+        attrs = attr.fields(self.__class__)
+        for a in attrs:
+            if not a.init:
+                continue
+            attr_name = a.name  # To deal with private attributes.
+            init_name = a.alias
+            if init_name not in kwargs:
+                kwargs[init_name] = getattr(self, attr_name)
+        return cast(Transformation, new_class(**kwargs))

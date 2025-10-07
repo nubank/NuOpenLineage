@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ class Owner(RedactMixin):
     the identifier of the owner of the Dataset. It is recommended to define this as a URN. For example
     application:foo, user:jdoe, team:data
     """
-    type: str | None = attr.field(default=None)
+    type: str | None = attr.field(default=None)  # noqa: A003
     """The type of ownership (optional)"""
 
 

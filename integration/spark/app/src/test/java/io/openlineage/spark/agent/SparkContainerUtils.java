@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -48,6 +48,18 @@ public class SparkContainerUtils {
       DockerImageName.parse("mockserver/mockserver")
           .withTag("mockserver-" + MockServerClient.class.getPackage().getImplementationVersion());
 
+  static final DockerImageName HIVE_IMAGE = DockerImageName.parse("apache/hive").withTag("3.1.3");
+
+  public static GenericContainer<?> makeHiveMetastoreContainer(Network network) {
+    GenericContainer<?> container =
+        new GenericContainer<>(HIVE_IMAGE)
+            .withNetwork(network)
+            .withNetworkAliases("metastore-standalone")
+            .withEnv("SERVICE_NAME", "metastore")
+            .withExposedPorts(9083);
+    return container;
+  }
+
   static MockServerContainer makeMockServerContainer(Network network) {
     return new MockServerContainer(MOCKSERVER_IMAGE)
         .withNetwork(network)
@@ -79,7 +91,7 @@ public class SparkContainerUtils {
     return container;
   }
 
-  static void mountPath(GenericContainer<?> container, Path sourcePath, Path targetPath) {
+  public static void mountPath(GenericContainer<?> container, Path sourcePath, Path targetPath) {
     if (log.isDebugEnabled()) {
       log.debug(
           "[image={}]: Mount volume '{}:{}'",
@@ -91,7 +103,7 @@ public class SparkContainerUtils {
   }
 
   @SneakyThrows
-  static void mountFiles(GenericContainer<?> container, Path sourceDir, Path targetDir) {
+  public static void mountFiles(GenericContainer<?> container, Path sourceDir, Path targetDir) {
     if (!Files.exists(sourceDir)) {
       log.warn("Source directory {} does not exist, skipping mount", sourceDir);
       return;
@@ -208,6 +220,7 @@ public class SparkContainerUtils {
     addSparkConfig(sparkConf, "spark.jars.ivy=/tmp/.ivy2/");
     addSparkConfig(sparkConf, "spark.openlineage.facets.spark.logicalPlan.disabled=false");
     addSparkConfig(sparkConf, "spark.openlineage.facets.spark_unknown.disabled=false");
+    addSparkConfig(sparkConf, "spark.openlineage.columnLineage.datasetLineageEnabled=false");
     addSparkConfig(
         sparkConf, "spark.openlineage.dataset.namespaceResolvers.kafka-cluster-prod.type=hostList");
     addSparkConfig(

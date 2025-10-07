@@ -1,4 +1,4 @@
-// Copyright 2018-2024 contributors to the OpenLineage project
+// Copyright 2018-2025 contributors to the OpenLineage project
 // SPDX-License-Identifier: Apache-2.0
 
 mod context;
@@ -16,7 +16,7 @@ use sqlparser::parser::Parser;
 use sqlparser::parser::ParserError::{ParserError, RecursionLimitExceeded, TokenizerError};
 
 pub fn parse_multiple_statements(
-    sql: Vec<&str>,
+    sql: Vec<String>,
     dialect: &dyn CanonicalDialect,
     default_schema: Option<String>,
 ) -> Result<SqlMeta> {
@@ -72,7 +72,7 @@ pub fn parse_sql(
     dialect: &dyn CanonicalDialect,
     default_schema: Option<String>,
 ) -> Result<SqlMeta> {
-    parse_multiple_statements(vec![sql], dialect, default_schema)
+    parse_multiple_statements(vec![sql.to_string()], dialect, default_schema)
 }
 
 #[cfg(test)]

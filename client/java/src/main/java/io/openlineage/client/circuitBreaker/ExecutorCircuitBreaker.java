@@ -1,17 +1,17 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.client.circuitBreaker;
 
+import io.openlineage.client.OpenLineageClientUtils;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,15 +20,18 @@ public abstract class ExecutorCircuitBreaker implements CircuitBreaker {
 
   private Integer circuitCheckIntervalInMillis;
   protected Optional<Duration> timeout;
+  private ExecutorService executor;
 
   public ExecutorCircuitBreaker(Integer circuitCheckIntervalInMillis) {
     this.circuitCheckIntervalInMillis = circuitCheckIntervalInMillis;
     this.timeout = Optional.empty();
+    executor = OpenLineageClientUtils.getOrCreateExecutor();
   }
 
   public ExecutorCircuitBreaker(Integer circuitCheckIntervalInMillis, Duration timeout) {
     this.circuitCheckIntervalInMillis = circuitCheckIntervalInMillis;
     this.timeout = Optional.of(timeout);
+    executor = OpenLineageClientUtils.getOrCreateExecutor();
   }
 
   @Override
@@ -38,7 +41,6 @@ public abstract class ExecutorCircuitBreaker implements CircuitBreaker {
       return null;
     }
 
-    ExecutorService executor = Executors.newCachedThreadPool();
     long startTime = System.currentTimeMillis();
     Future<T> futureOpenLineage = executor.submit(callable);
     Future<T> futureCircuitBreaker =
@@ -78,10 +80,7 @@ public abstract class ExecutorCircuitBreaker implements CircuitBreaker {
       futureOpenLineage.cancel(true);
       futureCircuitBreaker.cancel(true);
       log.warn("Got error in run callable: {}", e.getMessage(), e.getCause());
-      executor.shutdownNow();
       return null;
-    } finally {
-      executor.shutdownNow();
     }
     return result;
   }
@@ -89,6 +88,11 @@ public abstract class ExecutorCircuitBreaker implements CircuitBreaker {
   @Override
   public int getCheckIntervalMillis() {
     return circuitCheckIntervalInMillis;
+  }
+
+  @Override
+  public void close() {
+    log.info("No-op close");
   }
 
   public Optional<Duration> getTimeout() {

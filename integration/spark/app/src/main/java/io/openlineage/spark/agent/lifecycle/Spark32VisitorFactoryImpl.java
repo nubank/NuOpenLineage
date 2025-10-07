@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -16,6 +16,8 @@ import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark3.agent.lifecycle.plan.CreateTableLikeCommandVisitor;
 import io.openlineage.spark3.agent.lifecycle.plan.DropTableVisitor;
+import io.openlineage.spark3.agent.lifecycle.plan.RefreshTableCommandVisitor;
+import io.openlineage.spark32.agent.lifecycle.plan.RepairTableCommandVisitor;
 import java.util.List;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import scala.PartialFunction;
@@ -30,6 +32,7 @@ class Spark32VisitorFactoryImpl extends BaseVisitorFactory {
         .add(new CreateTableLikeCommandVisitor(context))
         .add(new DropTableVisitor(context))
         .add(new WriteToDataSourceV2Visitor(context))
+        .add(new RepairTableCommandVisitor(context))
         .build();
   }
 
@@ -39,6 +42,7 @@ class Spark32VisitorFactoryImpl extends BaseVisitorFactory {
     return ImmutableList.<PartialFunction<LogicalPlan, List<InputDataset>>>builder()
         .addAll(super.getInputVisitors(context))
         .add(new StreamingDataSourceV2RelationVisitor(context))
+        .add(new RefreshTableCommandVisitor(context))
         .build();
   }
 

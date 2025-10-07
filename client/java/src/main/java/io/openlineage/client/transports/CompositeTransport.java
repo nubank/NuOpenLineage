@@ -1,14 +1,21 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.client.transports;
 
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.OpenLineage.BaseEvent;
 import io.openlineage.client.OpenLineageClientException;
+import io.openlineage.client.OpenLineageClientUtils;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,11 +24,17 @@ public class CompositeTransport extends Transport {
 
   private final CompositeConfig config;
   private final List<Transport> transports = new ArrayList<>();
+  private final Optional<ExecutorService> executorService;
 
   public CompositeTransport(@NonNull CompositeConfig config) {
-    super(Type.NOOP); // Type doesn't matter for CompositeTransport
     this.config = config;
     initializeTransports();
+
+    if (config.getWithThreadPool() && config.getContinueOnFailure()) {
+      executorService = Optional.of(OpenLineageClientUtils.getOrCreateExecutor());
+    } else {
+      executorService = Optional.empty();
+    }
   }
 
   private void initializeTransports() {
@@ -37,39 +50,75 @@ public class CompositeTransport extends Transport {
 
   @Override
   public void emit(@NonNull OpenLineage.RunEvent runEvent) {
-    for (Transport transport : transports) {
-      try {
-        transport.emit(runEvent);
-      } catch (Exception e) {
-        handleEmissionFailure(transport, e);
-      }
-    }
+    doEmit(runEvent);
   }
 
   @Override
   public void emit(@NonNull OpenLineage.DatasetEvent datasetEvent) {
-    for (Transport transport : transports) {
-      try {
-        transport.emit(datasetEvent);
-      } catch (Exception e) {
-        handleEmissionFailure(transport, e);
-      }
-    }
+    doEmit(datasetEvent);
   }
 
   @Override
   public void emit(@NonNull OpenLineage.JobEvent jobEvent) {
-    for (Transport transport : transports) {
+    doEmit(jobEvent);
+  }
+
+  /**
+   * Emit events in parallel using a thread pool.
+   *
+   * @param event
+   */
+  private void doEmit(BaseEvent event) {
+    if (!config.getContinueOnFailure() || !config.getWithThreadPool()) {
+      // Emit events sequentially
+      for (Transport transport : transports) {
+        emit(transport, event);
+      }
+    } else {
       try {
-        transport.emit(jobEvent);
-      } catch (Exception e) {
-        handleEmissionFailure(transport, e);
+        executorService
+            .get()
+            .invokeAll(
+                transports.stream()
+                    .map(
+                        t ->
+                            (Callable<Void>)
+                                () -> {
+                                  emit(t, event);
+                                  return null;
+                                })
+                    .collect(Collectors.toList()))
+            .forEach(
+                f -> {
+                  try {
+                    f.get();
+                  } catch (InterruptedException | ExecutionException e) {
+                    // do nothing, continue with the next transport
+                  }
+                });
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
       }
     }
   }
 
-  private void handleEmissionFailure(Transport transport, Exception e) {
-    if (!config.isContinueOnFailure()) {
+  /**
+   * @param transport
+   * @param event
+   */
+  private void emit(Transport transport, BaseEvent event) {
+    try {
+      if (event instanceof OpenLineage.RunEvent) {
+        transport.emit((OpenLineage.RunEvent) event);
+      } else if (event instanceof OpenLineage.DatasetEvent) {
+        transport.emit((OpenLineage.DatasetEvent) event);
+      } else if (event instanceof OpenLineage.JobEvent) {
+        transport.emit((OpenLineage.JobEvent) event);
+      } else {
+        throw new IllegalArgumentException("Unsupported event type: " + event.getClass().getName());
+      }
+    } catch (Exception e) {
+      // enrich exception with an information about the failing transport
       throw new RuntimeException(
           "Transport " + transport.getClass().getSimpleName() + " failed to emit event", e);
     }
@@ -77,14 +126,18 @@ public class CompositeTransport extends Transport {
 
   @Override
   public void close() throws Exception {
-    transports.forEach(
-        t -> {
-          try {
-            t.close();
-          } catch (Exception e) {
-            log.error("Failed to close {} transport", t.getClass().getSimpleName(), e);
-            throw new OpenLineageClientException(e);
-          }
-        });
+    // do not close executor service as it is shared
+    Exception latestException = null;
+    for (Transport transport : transports) {
+      try {
+        transport.close();
+      } catch (Exception e) {
+        log.error("Failed to close {} transport", transport.getClass().getSimpleName(), e);
+        latestException = e;
+      }
+    }
+    if (latestException != null) {
+      throw new OpenLineageClientException(latestException);
+    }
   }
 }

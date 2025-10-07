@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -8,6 +8,7 @@ package io.openlineage.spark.agent.lifecycle;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.spark.agent.EventEmitter;
+import io.openlineage.spark.agent.Spark4CompatUtils;
 import io.openlineage.spark.agent.Versions;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.OpenLineageEventHandlerFactory;
@@ -79,7 +80,11 @@ public class ContextFactory {
             .openLineageConfig(config)
             .sparkExtensionVisitorWrapper(new SparkOpenLineageExtensionVisitorWrapper(config))
             .build();
-    return new RddExecutionContext(olContext, openLineageEventEmitter);
+
+    OpenLineageRunEventBuilder runEventBuilder =
+        new OpenLineageRunEventBuilder(olContext, handlerFactory);
+
+    return new RddExecutionContext(olContext, openLineageEventEmitter, runEventBuilder);
   }
 
   public Optional<ExecutionContext> createSparkSQLExecutionContext(long executionId) {
@@ -90,7 +95,7 @@ public class ContextFactory {
       log.warn("Query execution is null: can't emit event for executionId {}", executionId);
       return Optional.empty();
     }
-    SparkSession sparkSession = queryExecution.sparkSession();
+    SparkSession sparkSession = Spark4CompatUtils.getSparkSession(queryExecution);
     OpenLineageContext olContext =
         OpenLineageContext.builder()
             .sparkSession(sparkSession)
@@ -118,7 +123,7 @@ public class ContextFactory {
     return executionFromCompleteEvent(event)
         .map(
             queryExecution -> {
-              SparkSession sparkSession = queryExecution.sparkSession();
+              SparkSession sparkSession = Spark4CompatUtils.getSparkSession(queryExecution);
               OpenLineageContext olContext =
                   OpenLineageContext.builder()
                       .sparkSession(sparkSession)
@@ -140,6 +145,10 @@ public class ContextFactory {
               return new SparkSQLExecutionContext(
                   event.executionId(), openLineageEventEmitter, olContext, runEventBuilder);
             });
+  }
+
+  public void close() {
+    openLineageEventEmitter.close();
   }
 
   public static Optional<QueryExecution> executionFromCompleteEvent(

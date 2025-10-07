@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -19,7 +19,9 @@ public class PatternMatchingGroupNamespaceResolverBuilder
   }
 
   @Override
-  public HostListNamespaceResolver build(String name, DatasetNamespaceResolverConfig config) {
-    return new HostListNamespaceResolver(name, (HostListNamespaceResolverConfig) config);
+  public PatternMatchingGroupNamespaceResolver build(
+      String name, DatasetNamespaceResolverConfig config) {
+    return new PatternMatchingGroupNamespaceResolver(
+        (PatternMatchingGroupNamespaceResolverConfig) config);
   }
 }

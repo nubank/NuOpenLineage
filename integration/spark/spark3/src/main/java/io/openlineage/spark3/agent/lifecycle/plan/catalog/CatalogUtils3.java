@@ -1,13 +1,15 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark3.agent.lifecycle.plan.catalog;
 
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.spark.api.OpenLineageContext;
+import io.openlineage.spark3.agent.lifecycle.plan.catalog.iceberg.IcebergHandler;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +63,12 @@ public class CatalogUtils3 {
                 handler.getDatasetIdentifier(
                     context.getSparkSession().get(), catalog, identifier, properties))
         .findAny()
-        .orElseThrow(() -> new UnsupportedCatalogException(catalog.getClass().getCanonicalName()));
+        .orElseThrow(
+            () ->
+                new UnsupportedCatalogException(
+                    String.format(
+                        "Cannot extract dataset for catalog=%s",
+                        catalog.getClass().getCanonicalName())));
   }
 
   public static Optional<CatalogHandler> getCatalogHandler(
@@ -79,7 +86,29 @@ public class CatalogUtils3 {
         .filter(handler -> handler.isClass(relation))
         .map(handler -> handler.getDatasetIdentifier(relation))
         .findAny()
-        .orElseThrow(() -> new UnsupportedCatalogException(relation.getClass().getCanonicalName()));
+        .orElseThrow(
+            () ->
+                new UnsupportedCatalogException(
+                    String.format(
+                        "Cannot extract dataset from relation=%s relationClass=%s",
+                        relation.simpleString(5), relation.getClass().getCanonicalName())));
+  }
+
+  public static void addStorageAndCatalogFacets(
+      OpenLineageContext context,
+      TableCatalog catalog,
+      Map<String, String> properties,
+      DatasetCompositeFacetsBuilder builder) {
+    CatalogUtils3.getStorageDatasetFacet(context, catalog, properties)
+        .map(storageDatasetFacet -> builder.getFacets().storage(storageDatasetFacet));
+    CatalogUtils3.getCatalogDatasetFacet(context, catalog, properties)
+        .ifPresent(
+            catalogDatasetFacet -> {
+              builder.getFacets().catalog(catalogDatasetFacet.getCatalogDatasetFacet());
+              catalogDatasetFacet
+                  .getAdditionalFacets()
+                  .forEach((k, v) -> builder.getFacets().put(k, v));
+            });
   }
 
   public static Optional<OpenLineage.StorageDatasetFacet> getStorageDatasetFacet(
@@ -87,6 +116,14 @@ public class CatalogUtils3 {
     Optional<CatalogHandler> catalogHandler = getCatalogHandler(context, catalog);
     return catalogHandler.isPresent()
         ? catalogHandler.get().getStorageDatasetFacet(properties)
+        : Optional.empty();
+  }
+
+  public static Optional<CatalogHandler.CatalogWithAdditionalFacets> getCatalogDatasetFacet(
+      OpenLineageContext context, TableCatalog catalog, Map<String, String> properties) {
+    Optional<CatalogHandler> catalogHandler = getCatalogHandler(context, catalog);
+    return catalogHandler.isPresent()
+        ? catalogHandler.get().getCatalogDatasetFacet(catalog, properties)
         : Optional.empty();
   }
 

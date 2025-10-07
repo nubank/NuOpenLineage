@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -364,7 +364,7 @@ class SparkIcebergMetadataJsonTest {
             .withNetworkAliases("spark")
             .withLogConsumer(SparkContainerUtils::consumeOutput)
             .waitingFor(Wait.forLogMessage(SPARK_DOCKER_CONTAINER_WAIT_MESSAGE, 1))
-            .withStartupTimeout(Duration.ofSeconds(30L))
+            .withStartupTimeout(Duration.ofSeconds(60L))
             .withCommand(command)
             .withCreateContainerCmdModifier(
                 createContainerCmd ->

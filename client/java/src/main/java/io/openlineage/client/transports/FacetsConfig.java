@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -7,9 +7,9 @@ package io.openlineage.client.transports;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.annotations.VisibleForTesting;
 import io.openlineage.client.MergeConfig;
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,26 +32,12 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 public class FacetsConfig implements MergeConfig<FacetsConfig> {
 
-  /* This property is deprecated. Disable facets with "&lt;facet name&gt;.disabled=true" instead */
-  @Getter(onMethod_ = {@Deprecated})
-  @JsonProperty("disabled")
-  private String[] deprecatedDisabledFacets;
-
   @Getter
   @JsonProperty("custom_environment_variables")
   private String[] customEnvironmentVariables;
 
   /* The field is deserialized with {@link #onOtherProperty}. It is lazily initialized */
   @Getter @Setter private Map<String, Boolean> disabledFacets;
-
-  @SuppressWarnings({"PMD.UseVarargs", "PMD.ArrayIsStoredDirectly"})
-  public void setDeprecatedDisabledFacets(String[] disabledFacets) {
-    if (disabledFacets.length > 0) {
-      log.warn(
-          "Deprecation warning: The property 'disabledFacets' is deprecated and will be removed in the future. Use 'facets.<name of disabled facet>.disabled=true' instead");
-    }
-    this.deprecatedDisabledFacets = disabledFacets;
-  }
 
   /**
    * This method accepts every other property we may receive in configuration. The only supported
@@ -77,8 +63,7 @@ public class FacetsConfig implements MergeConfig<FacetsConfig> {
    * separated.by.dots and one prefix can include many disabled facets. For this reason this
    * function can return a list of disabled facet properties.
    */
-  @VisibleForTesting
-  static List<DisabledFacetProperty> asDisabledFacetProperties(String key, Object value) {
+  public static List<DisabledFacetProperty> asDisabledFacetProperties(String key, Object value) {
     /*
     The algorithm:
     - Flatten {prefix: {facet: {field: value, disabled: value}}, to to {prefix.facet.field: value, prefix.facet.disabled: value}
@@ -154,14 +139,12 @@ public class FacetsConfig implements MergeConfig<FacetsConfig> {
   @Override
   public FacetsConfig mergeWithNonNull(FacetsConfig facetsConfig) {
     return new FacetsConfig(
-        mergePropertyWith(deprecatedDisabledFacets, facetsConfig.deprecatedDisabledFacets),
         mergePropertyWith(customEnvironmentVariables, facetsConfig.customEnvironmentVariables),
         mergePropertyWith(disabledFacets, facetsConfig.disabledFacets));
   }
 
   @Data
-  @VisibleForTesting
-  static class DisabledFacetProperty {
+  public static class DisabledFacetProperty {
     private final String facetName;
     private final boolean disabled;
   }
@@ -173,11 +156,6 @@ public class FacetsConfig implements MergeConfig<FacetsConfig> {
    */
   public String[] getEffectiveDisabledFacets() {
     Set<String> disabledFacetsSet = new HashSet<>();
-    if (getDeprecatedDisabledFacets() != null) {
-      for (String deprecatedDisabledFacet : getDeprecatedDisabledFacets()) {
-        disabledFacetsSet.add(deprecatedDisabledFacet);
-      }
-    }
     if (getDisabledFacets() != null) {
       getDisabledFacets()
           .forEach(
@@ -190,5 +168,16 @@ public class FacetsConfig implements MergeConfig<FacetsConfig> {
               });
     }
     return disabledFacetsSet.toArray(new String[0]);
+  }
+
+  /**
+   * Checks if the facet is enabled. The method checks if a given facet is not in the list of
+   * effectively disabled facets. Useful for checking facets which are disabled by default.
+   *
+   * @param facetName
+   * @return
+   */
+  public boolean isFacetEnabled(String facetName) {
+    return Arrays.stream(getEffectiveDisabledFacets()).noneMatch(facetName::equals);
   }
 }

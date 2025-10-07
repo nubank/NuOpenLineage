@@ -1,4 +1,4 @@
-// Copyright 2018-2024 contributors to the OpenLineage project
+// Copyright 2018-2025 contributors to the OpenLineage project
 // SPDX-License-Identifier: Apache-2.0
 
 extern crate jni;
@@ -244,18 +244,14 @@ pub extern "system" fn Java_io_openlineage_sql_OpenLineageSql_parse(
             Err(Error::NullPtr(_)) => None,
             s => Some(s?.into()),
         };
-        let dialect = get_generic_dialect(dialect.as_deref());
+        let dialect = get_generic_dialect(dialect);
 
         let default_schema: Option<String> = match env.get_string(default_schema) {
             Err(Error::NullPtr(_)) => None,
             s => Some(s?.into()),
         };
 
-        let parsed = parse_multiple_statements(
-            vec_sql.iter().map(String::as_str).collect(),
-            dialect,
-            default_schema,
-        )?;
+        let parsed = parse_multiple_statements(vec_sql, dialect, default_schema)?;
         Ok(parsed.as_java_object(&env)?.into_raw())
     };
 

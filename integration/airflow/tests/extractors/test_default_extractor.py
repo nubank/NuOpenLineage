@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Any
@@ -29,9 +29,9 @@ RUN_FACETS = {
 JOB_FACETS = {"sql": sql_job.SQLJobFacet(query="SELECT * FROM inputtable")}
 
 
-@attr.s
+@attr.define
 class CompleteRunFacet(BaseFacet):
-    finished: bool = attr.ib(default=False)
+    finished: bool = False
 
 
 FINISHED_FACETS = {"complete": CompleteRunFacet(True)}

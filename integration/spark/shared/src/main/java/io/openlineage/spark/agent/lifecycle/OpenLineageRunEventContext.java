@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -8,9 +8,11 @@ package io.openlineage.spark.agent.lifecycle;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.JobBuilder;
 import io.openlineage.client.OpenLineage.ParentRunFacet;
+import io.openlineage.client.OpenLineage.RunEvent.EventType;
 import io.openlineage.client.OpenLineage.RunEventBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,6 +50,7 @@ public class OpenLineageRunEventContext {
   private Optional<Integer> jobId;
   private Optional<UUID> overwriteRunId;
   private SparkListenerEvent event;
+  private EventType eventType;
 
   public List<Object> loadNodes(Map<Integer, Stage> stageMap, Map<Integer, ActiveJob> jobMap) {
     List<Object> nodes = new ArrayList<>();
@@ -58,11 +61,11 @@ public class OpenLineageRunEventContext {
       RDD<?> rdd = stage.rdd();
 
       nodes.addAll(Arrays.asList(stageInfo, stage));
-      nodes.addAll(Rdds.flattenRDDs(rdd));
+      nodes.addAll(Rdds.flattenRDDs(rdd, new HashSet<>()));
     } else if (jobId.isPresent() && jobMap.containsKey(jobId.get())) {
       ActiveJob activeJob = jobMap.get(jobId.get());
       nodes.add(activeJob);
-      nodes.addAll(Rdds.flattenRDDs(activeJob.finalStage().rdd()));
+      nodes.addAll(Rdds.flattenRDDs(activeJob.finalStage().rdd(), new HashSet<>()));
     }
 
     return nodes;

@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -20,6 +20,7 @@ import io.openlineage.client.OpenLineage.RunEvent;
 import io.openlineage.client.OpenLineage.RunEvent.EventType;
 import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.spark.agent.SparkAgentTestExtension;
+import io.openlineage.spark.agent.util.TestOpenLineageEventHandlerFactory;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
@@ -146,6 +147,14 @@ class LibraryTest {
         .hasFieldOrPropertyWithValue("namespace", "ns_name")
         .hasFieldOrPropertyWithValue("name", "test_rdd");
 
+    assertThat(
+            second
+                .getRun()
+                .getFacets()
+                .getAdditionalProperties()
+                .containsKey(TestOpenLineageEventHandlerFactory.TEST_FACET_KEY))
+        .isTrue();
+
     assertThat(second.getOutputs())
         .hasSize(1)
         .first()
@@ -192,7 +201,7 @@ class LibraryTest {
   void testRDDName(SparkSession spark) {
     JavaSparkContext sc = new JavaSparkContext(spark.sparkContext());
     JavaRDD<Integer> numbers =
-        sc.parallelize(IntStream.range(1, 100).mapToObj(Integer::new).collect(Collectors.toList()));
+        sc.parallelize(IntStream.range(1, 100).boxed().collect(Collectors.toList()));
     numbers.setName("numbers");
     JavaRDD<String> transformed =
         numbers.filter(n -> n > 10 && n < 90).map(i -> i * i).map(String::valueOf);

@@ -4,7 +4,7 @@ title: Custom Extractors
 ---
 
 :::caution
-This page is about Airflow's external integration that works mainly for Airflow versions <2.7. 
+This page is about Airflow's external integration that works mainly for Airflow versions \<2.7. 
 [If you're using Airflow 2.7+, look at native Airflow OpenLineage provider documentation.](https://airflow.apache.org/docs/apache-airflow-providers-openlineage/stable/index.html)  <br /><br /> 
 
 The ongoing development and enhancements will be focused on the `apache-airflow-providers-openlineage` package, 
@@ -42,13 +42,13 @@ sets on it's own properties. Good example is `SnowflakeOperator` that sets `quer
 Both methods return `TaskMetadata` structure:
 
 ```python
-@attr.s
+@attr.define
 class TaskMetadata:
     name: str = attr.ib()  # deprecated
-    inputs: List[Dataset] = attr.ib(factory=list)
-    outputs: List[Dataset] = attr.ib(factory=list)
-    run_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
-    job_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
+    inputs: List[Dataset] = attr.field(factory=list)
+    outputs: List[Dataset] = attr.field(factory=list)
+    run_facets: Dict[str, BaseFacet] = attr.field(factory=dict)
+    job_facets: Dict[str, BaseFacet] = attr.field(factory=dict)
 ```
 
 Inputs and outputs are lists of plain [OpenLineage datasets](../../../client/python.md) 

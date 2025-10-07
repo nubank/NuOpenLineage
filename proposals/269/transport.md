@@ -77,7 +77,7 @@ transport:
   api_key: "very-secure-api-key"
 ```
 
-Buildin `Transports` are specified via case-insensitive aliases, like `http`, `kafka`.
+Builtin `Transports` are specified via case-insensitive aliases, like `http`, `kafka`.
 Default `TransportFactory` can load non-buildin transports based on fully-qualified class names. 
 The fully-qualified name can differ between languages. For example, Java implementation
 of `Apache Kafka Transport` can be `io.openlineage.transport.KafkaTransport`.
@@ -100,4 +100,4 @@ More details on `ProxyBackend` should be on [it's own github issue](https://gith
 
 ----
 SPDX-License-Identifier: Apache-2.0\
-Copyright 2018-2024 contributors to the OpenLineage project
+Copyright 2018-2025 contributors to the OpenLineage project

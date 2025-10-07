@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 import json
@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
 import yaml
 from jinja2 import Environment, Undefined
-from openlineage.common.provider.dbt.processor import DbtArtifactProcessor
+from openlineage.common.provider.dbt.processor import DbtArtifactProcessor, DbtRunRunFacet
 from openlineage.common.utils import get_from_nullable_chain
 
 DBT_TARGET_PATH_ENVVAR = "DBT_TARGET_PATH"
@@ -102,6 +102,7 @@ class DbtLocalArtifactProcessor(DbtArtifactProcessor):
 
         self.target = target
         self.project_name = dbt_project["name"]
+        self.project_version = dbt_project["version"]
         self.profile_name = profile_name or dbt_project.get("profile")
         if not self.profile_name:
             raise KeyError(f"profile not found in {dbt_project}")
@@ -134,6 +135,10 @@ class DbtLocalArtifactProcessor(DbtArtifactProcessor):
 
         The construction of the job name adheres to the following rules:
 
+            - If there is user-defined OPENLINEAGE_DBT_JOB_NAME env var
+              or --openlineage-dbt-job-name command line flag, then
+              it uses the value as the job name.
+
             - If OPENLINEAGE_DBT_USE_EXTENDED_JOB_NAME is set to false/0
               (default), then the job name is in the format
               ``dbt-run-{project_name}``.
@@ -147,6 +152,8 @@ class DbtLocalArtifactProcessor(DbtArtifactProcessor):
         task. Feel free to open a PR/discussion if you think that this list of
         identifiers should be extended or modified.
         """
+        if self.openlineage_job_name:
+            return self.openlineage_job_name
 
         job_name = f"dbt-run-{self.project_name}"
         if not self._use_extended_job_name:
@@ -195,8 +202,8 @@ class DbtLocalArtifactProcessor(DbtArtifactProcessor):
                 if schema_version > max(desired_schema_versions):
                     logger.warning(
                         f"Artifact schema version: {str_schema_version} is above dbt-ol "
-                        f"supported version {max(desired_schema_versions)}. "
-                        f"This might cause errors."
+                        f"tested version {max(desired_schema_versions)}. "
+                        f"Newer versions have not been tested and may not be compatible."
                     )
                 else:
                     raise ValueError(
@@ -243,9 +250,9 @@ class DbtLocalArtifactProcessor(DbtArtifactProcessor):
     def get_dbt_metadata(
         self,
     ) -> Tuple[Dict[Any, Any], Dict[Any, Any], Dict[Any, Any], Optional[Dict[Any, Any]]]:
-        manifest = self.load_metadata(self.manifest_path, [2, 3, 4, 5, 6, 7], self.logger)
+        manifest = self.load_metadata(self.manifest_path, list(range(2, 13)), self.logger)
 
-        run_result = self.load_metadata(self.run_result_path, [2, 3, 4, 5, 6], self.logger)
+        run_result = self.load_metadata(self.run_result_path, list(range(2, 7)), self.logger)
 
         try:
             catalog: Optional[Dict[Any, Any]] = self.load_metadata(self.catalog_path, [1], self.logger)
@@ -262,3 +269,17 @@ class DbtLocalArtifactProcessor(DbtArtifactProcessor):
         profile = profile["outputs"][self.target]
 
         return manifest, run_result, profile, catalog
+
+    def dbt_run_run_facet(self) -> dict[str, DbtRunRunFacet]:
+        invocation_id = self.run_metadata.get("invocation_id")
+        if not invocation_id:
+            return {}
+        return {
+            "dbt_run": DbtRunRunFacet(
+                invocation_id=invocation_id,
+                project_name=self.project_name,
+                project_version=self.project_version,
+                profile_name=self.profile_name,
+                dbt_runtime="core",
+            )
+        }

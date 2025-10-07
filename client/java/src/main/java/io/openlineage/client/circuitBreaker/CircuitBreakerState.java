@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -16,7 +16,6 @@ import lombok.ToString;
 @ToString
 public class CircuitBreakerState {
   @Getter private final boolean isClosed;
-
   @Getter private final Optional<String> reason;
 
   public CircuitBreakerState(boolean isClosed) {
