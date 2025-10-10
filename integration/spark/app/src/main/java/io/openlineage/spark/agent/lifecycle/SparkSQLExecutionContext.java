@@ -87,7 +87,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     } else if (EventFilterUtils.isDisabled(olContext, startEvent)) {
       log.info(
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerSQLExecutionStart");
-      return;
+      // return;
     }
 
     olContext.setActiveJobId(activeJobId);
@@ -133,7 +133,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     } else if (EventFilterUtils.isDisabled(olContext, endEvent)) {
       log.info(
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerSQLExecutionEnd");
-       return;
+      //  return;
     }
 
     // only one COMPLETE event is expected, verify if jobEnd was not emitted
@@ -270,7 +270,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     } else if (EventFilterUtils.isDisabled(olContext, jobStart)) {
       log.info(
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerJobStart");
-       return;
+      //  return;
     }
 
     // only one START event is expected, in case it was already sent with sqlExecutionStart, we send
@@ -316,7 +316,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     } else if (EventFilterUtils.isDisabled(olContext, jobEnd)) {
       log.info(
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerJobEnd");
-       return;
+      //  return;
     }
 
     // only one COMPLETE event is expected,
