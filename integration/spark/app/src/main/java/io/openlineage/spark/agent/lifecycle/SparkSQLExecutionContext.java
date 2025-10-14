@@ -180,7 +180,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     } else if (EventFilterUtils.isDisabled(olContext, stageSubmitted)) {
       log.info(
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageSubmitted");
-      return;
+      // return;
     }
 
     RunEvent event =
@@ -216,7 +216,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     } else if (EventFilterUtils.isDisabled(olContext, stageCompleted)) {
       log.info(
           "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageCompleted");
-      return;
+      // return;
     }
     RunEvent event =
         runEventBuilder.buildRun(
