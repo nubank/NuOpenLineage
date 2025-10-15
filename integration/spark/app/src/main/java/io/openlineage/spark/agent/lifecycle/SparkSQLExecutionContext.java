@@ -115,7 +115,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "Posting event for start {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
 
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -168,7 +168,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (log.isDebugEnabled()) {
       log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
@@ -204,7 +204,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
           executionId,
           OpenLineageClientUtils.toJson(event));
     }
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
@@ -239,7 +239,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
           executionId,
           OpenLineageClientUtils.toJson(event));
     }
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -298,7 +298,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
           "Posting event for start {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
 
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -355,7 +355,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
       log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
 
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
