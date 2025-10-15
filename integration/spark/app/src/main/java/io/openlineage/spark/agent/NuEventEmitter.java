@@ -36,7 +36,7 @@ public class NuEventEmitter {
     private static Boolean isPermittedJobType(RunEvent event) {
         String jobType = event.getJob().getFacets().getJobType().getJobType();
         if (WANTED_JOB_TYPES.stream().noneMatch(jobType::equals)) {
-            log.info("OpenLineage event with job type {} has no lineage value and should not be emitted", jobType);
+            log.debug("OpenLineage event with job type {} has no lineage value and should not be emitted", jobType);
             return false;
         }
         return true;
@@ -44,7 +44,7 @@ public class NuEventEmitter {
 
     private static Boolean isPermitedEventType(RunEvent event) {
         if (RUNNING.equals(event.getEventType())) {
-            log.info("OpenLineage event is {} and should not be emitted", RUNNING);
+            log.debug("OpenLineage event is {} and should not be emitted", RUNNING);
             return false;
         }
         return true;
@@ -53,11 +53,11 @@ public class NuEventEmitter {
     private static Boolean isPermittedJobName(RunEvent event) {
         String jobName = event.getJob().getName();
         if (isNull(jobName)) {
-            log.info("OpenLineage event has no job name and should not be emitted");
+            log.debug("OpenLineage event has no job name and should not be emitted");
             return false;
         }
         if (WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(jobName::contains)) {
-            log.info("OpenLineage event job name {} has no permitted substring and should not be emitted", jobName);
+            log.debug("OpenLineage event job name {} has no permitted substring and should not be emitted", jobName);
             return false;
         }
         return true;
@@ -84,7 +84,7 @@ public class NuEventEmitter {
                     .collect(Collectors.toList())
                     .forEach(dataset -> {
                         try {
-                            log.info("Discarding column lineage facet for dataset {} {} {}",
+                            log.debug("Discarding column lineage facet for dataset {} {} {}",
                                     dataset.getClass().getSimpleName(), dataset.getNamespace(), dataset.getName());
                             columnLineageFacetField.set(dataset.getFacets(), null);
                         } catch (IllegalAccessException e) {
