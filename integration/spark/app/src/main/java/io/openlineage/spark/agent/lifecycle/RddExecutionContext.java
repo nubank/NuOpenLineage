@@ -243,7 +243,7 @@ class RddExecutionContext implements ExecutionContext {
             .job(buildJob(jobStart.jobId()))
             .build();
     log.debug("Posting event for start {}: {}", jobStart, event);
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   @Override
@@ -291,7 +291,7 @@ class RddExecutionContext implements ExecutionContext {
       JobMetricsHolder.getInstance().cleanUp(jobEnd.jobId());
     }
 
-    eventEmitter.emit(event);
+    NuEventEmitter.emit(event, eventEmitter);
   }
 
   protected OpenLineage.RunFacetsBuilder buildRunFacets(
