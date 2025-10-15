@@ -1,17 +1,15 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark3.agent.lifecycle.plan;
 
-import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.InputDataset;
 import io.openlineage.spark.api.AbstractQueryPlanInputDatasetBuilder;
 import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark3.agent.utils.DataSourceV2RelationDatasetExtractor;
-import io.openlineage.spark3.agent.utils.DatasetVersionDatasetFacetUtils;
 import java.util.List;
 import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
@@ -50,12 +48,8 @@ public final class DataSourceV2ScanRelationOnStartInputDatasetBuilder
     }
 
     DataSourceV2Relation relation = plan.relation();
-    OpenLineage.DatasetFacetsBuilder datasetFacetsBuilder =
-        context.getOpenLineage().newDatasetFacetsBuilder();
-
-    DatasetVersionDatasetFacetUtils.includeDatasetVersion(context, datasetFacetsBuilder, relation);
-    return DataSourceV2RelationDatasetExtractor.extract(
-        factory, context, relation, datasetFacetsBuilder);
+    return DataSourceV2RelationDatasetExtractor.extractIncludingVersionFacet(
+        factory, context, relation);
   }
 
   @Override

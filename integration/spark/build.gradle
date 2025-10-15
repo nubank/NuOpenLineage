@@ -1,3 +1,8 @@
+/*
+/* Copyright 2018-2025 contributors to the OpenLineage project
+/* SPDX-License-Identifier: Apache-2.0
+*/
+
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
@@ -26,7 +31,6 @@ final def activeRuntimeElementsConfiguration = "scala${scalaFmt}RuntimeElements"
 dependencies {
     implementation(project(path: ":app"))
     implementation(project(path: ":shared", configuration: activeRuntimeElementsConfiguration))
-    implementation(project(path: ":spark2"))
     implementation(project(path: ":spark3", configuration: activeRuntimeElementsConfiguration))
     implementation(project(path: ":spark31"))
     implementation(project(path: ":spark32", configuration: activeRuntimeElementsConfiguration))
@@ -35,11 +39,17 @@ dependencies {
     implementation(project(path: ":spark35", configuration: activeRuntimeElementsConfiguration))
     implementation(project(path: ":spark40", configuration: "scala213RuntimeElements"))
     implementation(project(path: ":snowflake"))
+    implementation(project(path: ":iceberg"))
+    implementation(project(path: ":gcp"))
 }
 
 task sourceJar(type: Jar) {
     archiveClassifier = 'sources'
-    from sourceSets.main.allJava
+    subprojects.each { subproj ->
+        subproj.plugins.withType(JavaPlugin) {
+            from(subproj.sourceSets.main.allSource)
+        }
+    }
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
@@ -134,6 +144,8 @@ publishing {
 nexusPublishing {
     repositories {
         sonatype {
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
             username = System.getenv('RELEASE_USERNAME')
             password = System.getenv('RELEASE_PASSWORD')
         }
@@ -154,7 +166,6 @@ shadowJar {
     minimize() {
         exclude(project(path: ":app"))
         exclude(project(path: ":shared", configuration: activeRuntimeElementsConfiguration))
-        exclude(project(path: ":spark2"))
         exclude(project(path: ":spark3", configuration: activeRuntimeElementsConfiguration))
         exclude(project(path: ":spark31"))
         exclude(project(path: ":spark32", configuration: activeRuntimeElementsConfiguration))
@@ -162,6 +173,8 @@ shadowJar {
         exclude(project(path: ":spark34", configuration: activeRuntimeElementsConfiguration))
         exclude(project(path: ":spark35", configuration: activeRuntimeElementsConfiguration))
         exclude(project(path: ":snowflake"))
+        exclude(project(path: ":iceberg"))
+        exclude(project(path: ":gcp"))
     }
 
     dependencies {
@@ -174,14 +187,20 @@ shadowJar {
     relocate "org.apache.httpcomponents.client5", "io.openlineage.spark.shaded.org.apache.httpcomponents.client5"
     relocate "javassist", "io.openlineage.spark.shaded.javassist"
     relocate "org.apache.hc", "io.openlineage.spark.shaded.org.apache.hc"
+    relocate "org.apache.http", "io.openlineage.spark.shaded.org.apache.http"
     relocate "org.apache.commons.codec", "io.openlineage.spark.shaded.org.apache.commons.codec"
     relocate "org.apache.commons.lang3", "io.openlineage.spark.shaded.org.apache.commons.lang3"
     relocate "org.apache.commons.beanutils", "io.openlineage.spark.shaded.org.apache.commons.beanutils"
-    relocate "org.apache.http", "io.openlineage.spark.shaded.org.apache.http"
     relocate 'org.yaml.snakeyaml', 'io.openlineage.spark.shaded.org.yaml.snakeyaml'
     relocate "com.fasterxml.jackson", "io.openlineage.spark.shaded.com.fasterxml.jackson"
     relocate "org.LatencyUtils", "io.openlineage.spark.shaded.org.latencyutils"
     relocate "org.HdrHistogram", "io.openlineage.spark.shaded.org.hdrhistogram"
+
+    // AWS SDK dependencies
+    relocate "software.amazon", "io.openlineage.spark.shaded.software.amazon"
+    relocate "org.reactivestreams", "io.openlineage.spark.shaded.org.reactivestreams"
+    relocate "io.netty", "io.openlineage.spark.shaded.io.netty"
+
     manifest {
         attributes(
                 "Created-By": "Gradle ${gradle.gradleVersion}",

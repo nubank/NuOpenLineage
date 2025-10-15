@@ -1,12 +1,675 @@
 # Changelog
 
-## [Unreleased](https://github.com/OpenLineage/OpenLineage/compare/1.22.0...HEAD)
+## [Unreleased](https://github.com/OpenLineage/OpenLineage/compare/1.38.0...HEAD)
+
+## [1.38.0](https://github.com/OpenLineage/OpenLineage/compare/1.37.0...1.38.0) - 2025-10-01
+
+### Added
+
+* **Spec: Add subset dataset facets to spec** [`#4008`](https://github.com/OpenLineage/OpenLineage/pull/4008) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Add subset dataset facets to OpenLineage specification for representing dataset relationships.*
+* **Spec: Add DatasetQualityMetricsDatasetFacet** [`#3978`](https://github.com/OpenLineage/OpenLineage/pull/3978) [@heron--](https://github.com/heron--)
+  *Allow attaching dataset quality information outside of InputDatasetFacet.*
+* **Spark: Add support for microbatch source write** [`#4018`](https://github.com/OpenLineage/OpenLineage/pull/4018) [@tnazarew](https://github.com/tnazarew)
+  *Add support for Spark structured streaming microbatch source write operations.*
+* **Spark: Add catalog properties to catalog facet** [`#4016`](https://github.com/OpenLineage/OpenLineage/pull/4016) [@ddebowczyk92](https://github.com/ddebowczyk92)
+  *Add catalog properties support to Spark integration for better catalog metadata tracking.*
+* **Spark: Add GCP project ID and location to BigQuery Metastore catalog properties** [`#4039`](https://github.com/OpenLineage/OpenLineage/pull/4039) [@ddebowczyk92](https://github.com/ddebowczyk92)
+  *Enhance BigQuery integration with GCP project ID and location in catalog properties.*
+* **Spark: Add support for COALESCE transformation** [`#3972`](https://github.com/OpenLineage/OpenLineage/pull/3972) [@kchledowski](https://github.com/kchledowski)
+  *Add support for tracking COALESCE transformations in Spark jobs.*
+* **Spark: Add catalog facet when using vanilla Hive tables** [`#3982`](https://github.com/OpenLineage/OpenLineage/pull/3982) [@ddebowczyk92](https://github.com/ddebowczyk92)
+  *Add catalog facet support for vanilla Hive table operations.*
+* **Spark: Make output statistics available within complete event** [`#4013`](https://github.com/OpenLineage/OpenLineage/pull/4013) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Output statistics now available in complete events for better observability.*
+* **Spark: Add output stats for RDD jobs** [`#3977`](https://github.com/OpenLineage/OpenLineage/pull/3977) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Add output statistics tracking for Spark RDD-based jobs.*
+* **Java: Add equals and hashcode methods into generated classes** [`#4050`](https://github.com/OpenLineage/OpenLineage/pull/4050) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Improve generated model classes with proper equals and hashcode implementations.*
+* **dbt: Capture dbt tags** [`#4022`](https://github.com/OpenLineage/OpenLineage/pull/4022) [@mobuchowski](https://github.com/mobuchowski)
+  *Add support for capturing dbt tags in OpenLineage events.*
+* **dbt: Add dbt Cloud account ID to DbtRunRunFacet** [`#4017`](https://github.com/OpenLineage/OpenLineage/pull/4017) [@mobuchowski](https://github.com/mobuchowski)
+  *Add dbt Cloud account ID tracking to dbt run facets.*
+* **dbt: Update DbtRunRunFacet to add more useful information** [`#3987`](https://github.com/OpenLineage/OpenLineage/pull/3987) [@mobuchowski](https://github.com/mobuchowski)
+  *Enhance DbtRunRunFacet with additional metadata for better observability.*
+* **Python: Add GCP Lineage transport** [`#4006`](https://github.com/OpenLineage/OpenLineage/pull/4006) [@ddebowczyk92](https://github.com/ddebowczyk92)
+  *Add native Google Cloud Platform Lineage transport for Python client.*
+* **Python: Add fsspec support for FileTransport** [`#3983`](https://github.com/OpenLineage/OpenLineage/pull/3983) [@JDarDagran](https://github.com/JDarDagran)
+  *Add fsspec filesystem support to FileTransport for broader filesystem compatibility.*
+* **Python: Add default tags with OL client version** [`#3980`](https://github.com/OpenLineage/OpenLineage/pull/3980) [@kacpermuda](https://github.com/kacpermuda)
+  *Automatically add OpenLineage client version as default tag in events.*
+* **Airflow: Add GCP Composer facets** [`#3986`](https://github.com/OpenLineage/OpenLineage/pull/3986) [@gabrysiaolsz](https://github.com/gabrysiaolsz)
+  *Add GCP Cloud Composer environment metadata facets to Airflow integration.*
+
+### Changed
+
+* **dbt: Use alias when naming datasets** [`#4055`](https://github.com/OpenLineage/OpenLineage/pull/4055) [@mobuchowski](https://github.com/mobuchowski)
+  *Use dbt model aliases when generating dataset names for more accurate lineage.*
+* **Spark: Serialize event to JSON for logging** [`#4029`](https://github.com/OpenLineage/OpenLineage/pull/4029) [@EugeneYushin](https://github.com/EugeneYushin)
+  *Serialize OpenLineage events to JSON format for improved debug logging.*
+* **Spark: Respect overridden appName in EventEmitter** [`#4030`](https://github.com/OpenLineage/OpenLineage/pull/4030) [@EugeneYushin](https://github.com/EugeneYushin)
+  *Properly respect user-overridden application names in event emission.*
+* **Spark: Refactor CLL ExpressionDependencyCollector** [`#4003`](https://github.com/OpenLineage/OpenLineage/pull/4003) [@kchledowski](https://github.com/kchledowski)
+  *Refactor column-level lineage expression dependency collector for better maintainability.*
+* **Spark: Improve logging in IcebergInputStatisticsInputDatasetFacetBuilder** [`#3994`](https://github.com/OpenLineage/OpenLineage/pull/3994) [@JDarDagran](https://github.com/JDarDagran)
+  *Enhance logging for Iceberg input statistics collection.*
+* **Spark: Limit external getFileStatus calls when dealing with lots of S3 objects** [`#3985`](https://github.com/OpenLineage/OpenLineage/pull/3985) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Optimize S3 operations by limiting external getFileStatus calls for large object sets.*
+* **Java/Spark/Hive: Move TransformationInfo to Java client to reuse across integrations** [`#3964`](https://github.com/OpenLineage/OpenLineage/pull/3964) [@kchledowski](https://github.com/kchledowski)
+  *Refactor TransformationInfo into shared Java client for cross-integration reuse.*
+* **Python: Improve logging in AsyncHttpTransport** [`#4026`](https://github.com/OpenLineage/OpenLineage/pull/4026) [@dolfinus](https://github.com/dolfinus)
+  *Enhance logging capabilities in asynchronous HTTP transport.*
+* **Python: Allow type aliases** [`#4000`](https://github.com/OpenLineage/OpenLineage/pull/4000) [@JDarDagran](https://github.com/JDarDagran)
+  *Support Python type aliases in client code generation.*
+* **Python: Fix classes generation for almost identical classes** [`#3997`](https://github.com/OpenLineage/OpenLineage/pull/3997) [@JDarDagran](https://github.com/JDarDagran)
+  *Improve code generation to properly handle nearly identical class definitions.*
+* **Python: Raise errors if custom token provider cannot be loaded** [`#4014`](https://github.com/OpenLineage/OpenLineage/pull/4014) [@dolfinus](https://github.com/dolfinus)
+  *Fail fast with clear errors when custom token providers fail to load.*
+* **Python: Don't silence import errors in DefaultTransportFactory** [`#4015`](https://github.com/OpenLineage/OpenLineage/pull/4015) [@dolfinus](https://github.com/dolfinus)
+  *Improve error visibility by not silencing import errors in transport factory.*
+* **Python: Import from facet_v2 and event_v2 instead of generated modules** [`#3968`](https://github.com/OpenLineage/OpenLineage/pull/3968) [@kacpermuda](https://github.com/kacpermuda)
+  *Update import paths to use versioned facet and event modules.*
+* **Java: Refactor ExecutorService management in OpenLineageClientUtils** [`#4012`](https://github.com/OpenLineage/OpenLineage/pull/4012) [@JDarDagran](https://github.com/JDarDagran)
+  *Improve thread pool management in Java client utilities.*
+* **CI: Replace pre-commit with prek across CI and documentation** [`#3965`](https://github.com/OpenLineage/OpenLineage/pull/3965) [@JDarDagran](https://github.com/JDarDagran)
+  *Migrate from pre-commit to prek for pre-commit hook management.*
+
+### Fixed
+
+* **Spark: Fix false Hive Glue detection** [`#4053`](https://github.com/OpenLineage/OpenLineage/pull/4053) [@jsjasonseba](https://github.com/jsjasonseba)
+  *Fix incorrect Glue catalog detection due to always attempting ARN resolution.*
+* **Spark: Fix CLL on hiveless runtimes** [`#4052`](https://github.com/OpenLineage/OpenLineage/pull/4052) [@kchledowski](https://github.com/kchledowski)
+  *Fix column-level lineage failures on Spark runtimes without spark-hive package.*
+* **Spark: Fix missing inputs and CLL on some table creation commands** [`#4031`](https://github.com/OpenLineage/OpenLineage/pull/4031) [@kchledowski](https://github.com/kchledowski)
+  *Fix missing input datasets and column-level lineage for CreateDataSourceTableAsSelect and CreateHiveTableAsSelect commands.*
+* **Spark: Rely on BQ bucket info inside BigQueryIntermediateJobFilter** [`#4044`](https://github.com/OpenLineage/OpenLineage/pull/4044) [@EugeneYushin](https://github.com/EugeneYushin)
+  *Fix BigQuery intermediate job filtering by using bucket configuration.*
+* **Spark: Fix for TypeNotPresentException/RefreshTableCommand errors in Spark 3.0.2** [`#4002`](https://github.com/OpenLineage/OpenLineage/pull/4002) [@MaciejGajewski](https://github.com/MaciejGajewski)
+  *Add additional exception handling for TypeNotPresentException in Spark 3.0.2.*
+* **Python: Fix license field in pyproject.toml when using build module** [`#4034`](https://github.com/OpenLineage/OpenLineage/pull/4034) [@JDarDagran](https://github.com/JDarDagran)
+  *Correct license field specification in Python package metadata.*
+* **Python: Accept both apikey and api_key in token provider** [`#4045`](https://github.com/OpenLineage/OpenLineage/pull/4045) [@kacpermuda](https://github.com/kacpermuda)
+  *Support both naming conventions for API key configuration parameter.*
+* **Java: Fix empty sources jar generation** [`#4037`](https://github.com/OpenLineage/OpenLineage/pull/4037) [@EugeneYushin](https://github.com/EugeneYushin)
+  *Fix build issue causing empty sources JAR files to be generated.*
+
+## [1.37.0](https://github.com/OpenLineage/OpenLineage/compare/1.36.0...1.37.0) - 2025-08-11
+
+### Added
+
+* **Python: Add Datadog transport with configurable async routing** [`#3950`](https://github.com/OpenLineage/OpenLineage/pull/3950) [@mobuchowski](https://github.com/mobuchowski)  
+  *Add Datadog transport with intelligent routing between sync/async transports based on configurable rules. Supports wildcard matching and provides seamless integration with Datadog's observability platform.*
+* **Spark: Implement support for WriteDelta, WriteIcebergDelta logical plan nodes** [`#3860`](https://github.com/OpenLineage/OpenLineage/pull/3860) [@orthoxerox](https://github.com/orthoxerox)  
+  *Add support for WriteDelta and WriteIcebergDelta logical plan nodes in Spark integration.*
+* **dbt: Add option to override dbt job name** [`#3933`](https://github.com/OpenLineage/OpenLineage/pull/3933) [@mobuchowski](https://github.com/mobuchowski)  
+  *Add configuration option to override dbt job names in OpenLineage events.*
+* **Java: Add Jackson Blackbird module for JSON performance optimization** [`#3923`](https://github.com/OpenLineage/OpenLineage/pull/3923) [@kyungryun](https://github.com/kyungryun)  
+  *Improve JSON serialization performance with Jackson Blackbird module.*
+
+### Changed
+
+* **Spark: Remove Spark 2 support** [`#3904`](https://github.com/OpenLineage/OpenLineage/pull/3904) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Drop support for Spark 2.x versions. Minimum supported version is now Spark 3.x.*
+* **Python: Change gzip compression level in HTTP transport** [`#3956`](https://github.com/OpenLineage/OpenLineage/pull/3956) [@dolfinus](https://github.com/dolfinus)  
+  *Optimize HTTP transport performance by adjusting gzip compression level.*
+* **Spark: Add support for Spark 4 in streaming tests** [`#3925`](https://github.com/OpenLineage/OpenLineage/pull/3925) [@SalvadorRomo](https://github.com/SalvadorRomo)  
+  *Extend streaming integration tests to support Spark 4.0.*
+
+### Fixed
+
+* **Spark: Improve performance of column level lineage** [`#3946`](https://github.com/OpenLineage/OpenLineage/pull/3946) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Limit memory consumption, provide limits for the amount of dependencies processed (1M) and input fields returned in the facet (100K). Turns on dataset lineage by default.*
+* **Spark: Add schema size limit for column level lineage processing** [`#3949`](https://github.com/OpenLineage/OpenLineage/pull/3949) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Add limits to prevent performance issues with large schemas in column-level lineage processing.*
+* **Spark: Fix context factory for Spark 4** [`#3934`](https://github.com/OpenLineage/OpenLineage/pull/3934) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Fix context factory implementation for Spark 4.0 compatibility.*
+* **Spark: Fix LogicalRelation constructor compatibility for Spark 4** [`#3930`](https://github.com/OpenLineage/OpenLineage/pull/3930) [@yunchipang](https://github.com/yunchipang)  
+  *Fix LogicalRelation constructor to maintain compatibility with Spark 4.0.*
+* **Spark: Fix vendors parsing in SparkOpenLineageConfig** [`#3947`](https://github.com/OpenLineage/OpenLineage/pull/3947) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Fix parsing of vendor configurations in Spark OpenLineage configuration.*
+* **dbt: Use correct namespace for dbt externalQuery facet** [`#3953`](https://github.com/OpenLineage/OpenLineage/pull/3953) [@jroachgolf84](https://github.com/jroachgolf84)  
+  *Fix namespace handling in dbt external query facets.*
+* **Python: Fix tags configuration** [`#3943`](https://github.com/OpenLineage/OpenLineage/pull/3943) [@JDarDagran](https://github.com/JDarDagran)  
+  *Fix configuration handling for user-supplied tags in Python client.*
+
+## [1.36.0](https://github.com/OpenLineage/OpenLineage/compare/1.35.0...1.36.0) - 2025-07-22
+
+### Added
+
+* **Spark: support Delta 4.0 and cover it with tests on Spark 4.0.** [`#3877`](https://github.com/OpenLineage/OpenLineage/pull/3877) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Fix failing tests for Spark 4.0. Make delta integration tests pass with Delta 4.0 on Spark 4.*
+* **Spark: Add memory info to debug facet.** [`#3914`](https://github.com/OpenLineage/OpenLineage/pull/3914) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Extend DebugFacet with additional information on Spark's driver memory configuration and current memory usage.*
+* **Spark: Add new AlterTableCommandDatasetBuilder for Spark 4.0.** [`#3921`](https://github.com/OpenLineage/OpenLineage/pull/3921) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Add support for AlterTableCommand dataset building in Spark 4.0.*
+* **dbt: Add query IDs for dbt.** [`#3890`](https://github.com/OpenLineage/OpenLineage/pull/3890) [@jroachgolf84](https://github.com/jroachgolf84)  
+  *Add query ID tracking to dbt integration.*
+* **dbt: Add query ID capture in structured logs.** [`#3918`](https://github.com/OpenLineage/OpenLineage/pull/3918) [@mobuchowski](https://github.com/mobuchowski)  
+  *Capture query IDs from dbt structured logs for better traceability.*
+* **Python: Formalize dataset naming for Python client.** [`#3816`](https://github.com/OpenLineage/OpenLineage/pull/3816) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Formalize dataset naming conventions in Python client implementation.*
+
+### Changed
+
+* **Spark: bump minor versions 3.4.3 -> 3.4.4, 3.5.4 -> 3.5.6.** [`#3907`](https://github.com/OpenLineage/OpenLineage/pull/3907) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Bump tested Spark versions.*
+* **Spark: Close OpenLineageClient in onApplicationEnd.** [`#3851`](https://github.com/OpenLineage/OpenLineage/pull/3851) [@dolfinus](https://github.com/dolfinus)  
+  *Ensure proper cleanup of OpenLineageClient when Spark application ends.*
+* **Python: Do not use f-strings with logging module.** [`#3895`](https://github.com/OpenLineage/OpenLineage/pull/3895) [@dolfinus](https://github.com/dolfinus)  
+  *Replace f-string usage in logging calls with proper logging formatting.*
+* **Python: Update protobuf version to be compatible with newer libraries.** [`#3899`](https://github.com/OpenLineage/OpenLineage/pull/3899) [@Shadi](https://github.com/Shadi)  
+  *Update protobuf dependency to maintain compatibility with newer library versions.*
+* **Website: Documentation for compatibility tests.** [`#3869`](https://github.com/OpenLineage/OpenLineage/pull/3869) [@mobuchowski](https://github.com/mobuchowski)  
+  *Add documentation explaining compatibility testing processes.*
+
+### Fixed
+
+* **Spark: make visitors stateless - avoid memory leak.** [`#3902`](https://github.com/OpenLineage/OpenLineage/pull/3902) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Merge `SqlExecutionRDDVisitor` and `LogicalRDDVisitor` classes to avoid memory leak.*
+* **Spark: refactor iceberg handler.** [`#3909`](https://github.com/OpenLineage/OpenLineage/pull/3909) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Refactor Iceberg handler implementation for better maintainability.*
+* **Spark: retry exception on empty row.** [`#3908`](https://github.com/OpenLineage/OpenLineage/pull/3908) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Add retry logic for handling empty row exceptions.*
+* **Spark: fix Spark version for databricks test.** [`#3911`](https://github.com/OpenLineage/OpenLineage/pull/3911) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Fix Spark version configuration in Databricks test environment.*
+* **Flink: Fix connector of type kafka-upsert not identifying kafka topics correctly.** [`#3915`](https://github.com/OpenLineage/OpenLineage/pull/3915) [@fetta](https://github.com/fetta)  
+  *Fix kafka-upsert connector to properly identify kafka topics.*
+* **Airflow: Fail fast and reduce timeout for airflow tests.** [`#3905`](https://github.com/OpenLineage/OpenLineage/pull/3905) [@kacpermuda](https://github.com/kacpermuda)  
+  *Improve test performance by implementing fail-fast behavior and reduced timeouts.*
+* **dbt: more telemetry, fix quadratic file reading.** [`#3916`](https://github.com/OpenLineage/OpenLineage/pull/3916) [@mobuchowski](https://github.com/mobuchowski)  
+  *Improve telemetry collection and fix performance issues with file reading.*
+* **dbt: Fix dbt version.** [`#3894`](https://github.com/OpenLineage/OpenLineage/pull/3894) [@mobuchowski](https://github.com/mobuchowski)  
+  *Fix dbt version compatibility issues.*
+* **Python: Fix filenames for windows users.** [`#3889`](https://github.com/OpenLineage/OpenLineage/pull/3889) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Fix filename handling to work correctly on Windows systems.*
+* **Transport: Adjust log level when aliasing default_http transport.** [`#3897`](https://github.com/OpenLineage/OpenLineage/pull/3897) [@dolfinus](https://github.com/dolfinus)  
+  *Adjust logging level for transport aliasing messages.*
+* **Build: Improve comments and add some tests.** [`#3901`](https://github.com/OpenLineage/OpenLineage/pull/3901) [@kacpermuda](https://github.com/kacpermuda)  
+  *Improve code documentation and add additional test coverage.*
+
+## [1.35.0](https://github.com/OpenLineage/OpenLineage/compare/1.34.0...1.35.0) - 2025-07-11
+
+### Added
+
+* **Spark: Include spark_applicationDetails facet to all events** [`#3848`](https://github.com/OpenLineage/OpenLineage/pull/3848) [@dolfinus](https://github.com/dolfinus)  
+  *Add spark_applicationDetails facet to all OpenLineage events emitted by the Spark integration*
+* **Spark: Support additional facets** [`#3850`](https://github.com/OpenLineage/OpenLineage/pull/3850) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Adds support for additional facets in Spark integration*
+* **Spark: disable connector by Spark config parameter** [`#3880`](https://github.com/OpenLineage/OpenLineage/pull/3880) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Add `spark.openlineage.disabled` entry to disable OpenLineage integration through Spark config parameters*
+* **Spark: Fine-grained timeout config** [`#3779`](https://github.com/OpenLineage/OpenLineage/pull/3779) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Add extra timeout options to emit incomplete OpenLineage events in case of timeout when building facets. See `buildDatasetsTimePercentage` and `facetsBuildingTimePercentage` in docs for more details*
+* **Python: Asynchronous HTTP transport implementation** [`#3812`](https://github.com/OpenLineage/OpenLineage/pull/3812) [@mobuchowski](https://github.com/mobuchowski)  
+  *Adds high-performance asynchronous HTTP transport with event ordering guarantees, configurable concurrency, and comprehensive error handling. Features START-before-completion event ordering, bounded queues, and real-time statistics*
+* **dbt: Add DbtRun facet to dbt run events** [`#3764`](https://github.com/OpenLineage/OpenLineage/pull/3764) [@dolfinus](https://github.com/dolfinus)  
+  *Adds DbtRun facet for tracking dbt run information*
+* **Python: Add continue_on_success and sorting transport in CompositeTransport** [`#3829`](https://github.com/OpenLineage/OpenLineage/pull/3829) [@kacpermuda](https://github.com/kacpermuda)  
+  *Adds configuration options for CompositeTransport to control behavior and ordering*
+* **Hive: Add jobType facet** [`#3789`](https://github.com/OpenLineage/OpenLineage/pull/3789) [@dolfinus](https://github.com/dolfinus)  
+  *Adds jobType facet to Hive integration*
+* **Hive: Add dialect=hive to SqlJobFacet** [`#3863`](https://github.com/OpenLineage/OpenLineage/pull/3863) [@dolfinus](https://github.com/dolfinus)  
+  *Adds dialect field to SqlJobFacet for Hive integration*
+* **Spec: SqlJobFacet now contains dialect** [`#3819`](https://github.com/OpenLineage/OpenLineage/pull/3819) [@mobuchowski](https://github.com/mobuchowski)  
+  *Adds dialect field to SqlJobFacet specification*
+* **Spec: Formalize job naming** [`#3826`](https://github.com/OpenLineage/OpenLineage/pull/3826) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Formalizes job naming conventions in the specification*
+* **Spec: Formalize dataset naming** [`#3775`](https://github.com/OpenLineage/OpenLineage/pull/3775) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Formalizes dataset naming conventions in the specification*
+
+### Changed
+
+* **Spark: Use Hive as default Iceberg catalog implementation** [`#3858`](https://github.com/OpenLineage/OpenLineage/pull/3858) [@dolfinus](https://github.com/dolfinus)  
+  *Updates Spark integration to use Hive as the default catalog implementation for Iceberg tables*
+* **Spark: Replace weak hash-map with a map with weak keys and entries** [`#3856`](https://github.com/OpenLineage/OpenLineage/pull/3856) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Improves memory management in Spark integration by replacing weak hash-map implementation*
+* **Spark: Support latest databricks runtime** [`#3811`](https://github.com/OpenLineage/OpenLineage/pull/3811) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Updates Spark integration to support the latest Databricks runtime*
+* **Python: Remove transport.wait_for_completion()** [`#3881`](https://github.com/OpenLineage/OpenLineage/pull/3881) [@dolfinus](https://github.com/dolfinus)  
+  *Removes wait_for_completion() method from Python transport interface*
+* **Python: Reuse session in sync HttpTransport** [`#3843`](https://github.com/OpenLineage/OpenLineage/pull/3843) [@dolfinus](https://github.com/dolfinus)  
+  *Improves performance by reusing HTTP sessions in synchronous transport*
+* **Python: Implement Transport.close() for Datazone and Kinesis** [`#3857`](https://github.com/OpenLineage/OpenLineage/pull/3857) [@dolfinus](https://github.com/dolfinus)  
+  *Adds proper cleanup methods for Datazone and Kinesis transports*
+* **Python: Implement TransformTransport.close** [`#3855`](https://github.com/OpenLineage/OpenLineage/pull/3855) [@dolfinus](https://github.com/dolfinus)  
+  *Adds cleanup method for TransformTransport*
+* **Python: Implement KafkaTransport.wait_for_completion() and .close()** [`#3838`](https://github.com/OpenLineage/OpenLineage/pull/3838) [@dolfinus](https://github.com/dolfinus)  
+  *Adds proper cleanup and completion methods for Kafka transport*
+* **Java: Make CompositeTransport.close() more reliable** [`#3841`](https://github.com/OpenLineage/OpenLineage/pull/3841) [@dolfinus](https://github.com/dolfinus)  
+  *Improves reliability of CompositeTransport cleanup process*
+* **Java: Cover OpenLineageClient.close() with tests** [`#3839`](https://github.com/OpenLineage/OpenLineage/pull/3839) [@dolfinus](https://github.com/dolfinus)  
+  *Adds test coverage for OpenLineageClient cleanup methods*
+* **Java: Name threads used in Java client** [`#3817`](https://github.com/OpenLineage/OpenLineage/pull/3817) [@mobuchowski](https://github.com/mobuchowski)  
+  *Adds meaningful names to threads used in Java client for better debugging*
+* **Flink: Close OpenLineageClient in onJobExecuted** [`#3854`](https://github.com/OpenLineage/OpenLineage/pull/3854) [@dolfinus](https://github.com/dolfinus)  
+  *Ensures proper cleanup of OpenLineageClient in Flink 1.x integration*
+* **Flink: Fixed a bug incorrectly loading configuration in Event Emitter** [`#3799`](https://github.com/OpenLineage/OpenLineage/pull/3799) [@pan-siekierski](https://github.com/pan-siekierski)  
+  *Fixes configuration loading issue in Flink Event Emitter*
+* **dbt: Make invocation_id field optional** [`#3796`](https://github.com/OpenLineage/OpenLineage/pull/3796) [@dolfinus](https://github.com/dolfinus)  
+  *Makes invocation_id field optional in dbt integration*
+* **dbt: More resiliency for missing dbt nodes** [`#3836`](https://github.com/OpenLineage/OpenLineage/pull/3836) [@mobuchowski](https://github.com/mobuchowski)  
+  *Improves error handling for missing dbt nodes*
+* **Hive: Add docker-compose example for local testing** [`#3800`](https://github.com/OpenLineage/OpenLineage/pull/3800) [@dolfinus](https://github.com/dolfinus)  
+  *Adds docker-compose setup for local Hive integration testing*
+* **Airflow: Send pending events after Airflow DAG is finished** [`#3849`](https://github.com/OpenLineage/OpenLineage/pull/3849) [@dolfinus](https://github.com/dolfinus)  
+  *Ensures all pending events are sent after DAG completion in Airflow integration*
+
+### Fixed
+
+* **dbt: Fix log path, more precise file reading** [`#3793`](https://github.com/OpenLineage/OpenLineage/pull/3793) [@mobuchowski](https://github.com/mobuchowski)  
+  *Improves log file handling in dbt integration*
+* **dbt: Fix deprecated configs** [`#3859`](https://github.com/OpenLineage/OpenLineage/pull/3859) [@kacpermuda](https://github.com/kacpermuda)  
+  *Replaces deprecated dbt configurations with current alternatives*
+* **Spark: Fix missing `.db` suffix in database/namespace location name for BigQueryMetastoreCatalog** [`#3874`](https://github.com/OpenLineage/OpenLineage/pull/3874) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Fixes database naming issue in BigQuery Metastore catalog implementation*
+* **Spark: Fix missing output's dataset catalog facet when running CTAS queries on Iceberg tables** [`#3835`](https://github.com/OpenLineage/OpenLineage/pull/3835) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Fixes missing catalog facet in output datasets for CTAS queries on Iceberg tables*
+* **Spark: Delta merge with column** [`#3871`](https://github.com/OpenLineage/OpenLineage/pull/3871) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Fixes Delta merge operation handling with column-level lineage*
+* **Spark: Support delta 3.3.2** [`#3861`](https://github.com/OpenLineage/OpenLineage/pull/3861) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Adds support for Delta Lake version 3.3.2*
+* **Spark: Call version utils method when dataset can be identified** [`#3832`](https://github.com/OpenLineage/OpenLineage/pull/3832) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Fixes version handling when dataset can be properly identified*
+* **Java: Raise error if no events were emitted by composite transport** [`#3853`](https://github.com/OpenLineage/OpenLineage/pull/3853) [@kacpermuda](https://github.com/kacpermuda)  
+  *Adds error handling when CompositeTransport fails to emit any events*
+* **Java: Fix IntelliJ reload** [`#3825`](https://github.com/OpenLineage/OpenLineage/pull/3825) [@mobuchowski](https://github.com/mobuchowski)  
+  *Fixes IntelliJ project reload issues*
+* **Java: Fix spotless in hive integration** [`#3806`](https://github.com/OpenLineage/OpenLineage/pull/3806) [@mobuchowski](https://github.com/mobuchowski)  
+  *Fixes code formatting issues in Hive integration*
+* **Java: Fix missing field in SQL facet test** [`#3830`](https://github.com/OpenLineage/OpenLineage/pull/3830) [@mobuchowski](https://github.com/mobuchowski)  
+  *Fixes missing field in SQL facet test case*
+* **Java: Fix composite transport logging of multiple transports** [`#3887`](https://github.com/OpenLineage/OpenLineage/pull/3887) [@kacpermuda](https://github.com/kacpermuda)  
+  *Fixes logging issue when using CompositeTransport with multiple transports*
+* **Rust: Fix new rust formatting warnings** [`#3814`](https://github.com/OpenLineage/OpenLineage/pull/3814) [@mobuchowski](https://github.com/mobuchowski)  
+  *Fixes formatting warnings in Rust code*
+
+
+## [1.34.0](https://github.com/OpenLineage/OpenLineage/compare/1.33.0...1.34.0) - 2025-06-18
+
+### Added
+
+* **Hive: Integration added.** [`#3555`](https://github.com/OpenLineage/OpenLineage/pull/3555) [@tnazarew](https://github.com/tnazarew) with [@ddebowczyk92](https://github.com/ddebowczyk92), [@jphalip](https://github.com/jphalip)  
+  *Added OpenLineage Hive integration*
+* **Spark: Support dynamic frames.** [`#3691`](https://github.com/OpenLineage/OpenLineage/pull/3691) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Support lineage extraction from `UnionRdd` and `NewHadoopRDD`, which makes dynamic frames docker based test passing.*
+* **Hive: Add hive_query facet** [`#3781`](https://github.com/OpenLineage/OpenLineage/pull/3781) [@dolfinus](https://github.com/dolfinus)  
+  *Adds hive_query facet for Hive integration*
+* **Hive: Add job sql facet** [`#3777`](https://github.com/OpenLineage/OpenLineage/pull/3777) [@dolfinus](https://github.com/dolfinus)  
+  *Adds job sql facet for Hive integration*
+* **Hive: Add hive session facet** [`#3786`](https://github.com/OpenLineage/OpenLineage/pull/3786) [@dolfinus](https://github.com/dolfinus)  
+  *Adds hive session facet for Hive integration*
+* **Java: Add Location Symlink type** [`#3717`](https://github.com/OpenLineage/OpenLineage/pull/3717) [@tnazarew](https://github.com/tnazarew)  
+  *Add new symlink type representing physical location of dataset*
+* **Spark: Smart debug facet.** [`#3715`](https://github.com/OpenLineage/OpenLineage/pull/3715) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Automatically turn on debug facet in case of spark connector anomalies detected*
+* **Spark: Add support for Big Query Metastore catalog type** [`#3760`](https://github.com/OpenLineage/OpenLineage/pull/3760) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Adds support for BigQuery Metastore catalog in Spark integration*
+* **dbt: Add DbtRun facet** [`#3738`](https://github.com/OpenLineage/OpenLineage/pull/3738) [@dolfinus](https://github.com/dolfinus)  
+  *Adds DbtRun facet for tracking dbt run information*
+* **dbt: Initial support for Clickhouse** [`#3739`](https://github.com/OpenLineage/OpenLineage/pull/3739) [@dolfinus](https://github.com/dolfinus)  
+  *Adds initial support for ClickHouse in dbt integration*
+* **dbt: Add processing_engine facet** [`#3725`](https://github.com/OpenLineage/OpenLineage/pull/3725) [@dolfinus](https://github.com/dolfinus)  
+  *Adds processing_engine facet for dbt integration*
+* **Flink: Add facet with Flink jobId** [`#3744`](https://github.com/OpenLineage/OpenLineage/pull/3744) [@dolfinus](https://github.com/dolfinus)  
+  *Adds facet containing Flink job ID information*
+* **Flink: Add processing_engine facet** [`#3726`](https://github.com/OpenLineage/OpenLineage/pull/3726) [@dolfinus](https://github.com/dolfinus)  
+  *Adds processing_engine facet for Flink integration*
+* **JDBC: Column level lineage for jdbc queries load** [`#3763`](https://github.com/OpenLineage/OpenLineage/pull/3763) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Adds column-level lineage support for JDBC queries for Spark with single input table*
+* **Spec: Add contentType to documentation facet** [`#3748`](https://github.com/OpenLineage/OpenLineage/pull/3748) [@dolfinus](https://github.com/dolfinus)  
+  *Adds contentType field to documentation facet specification*
+
+### Changed
+
+* **Airflow: Remove Airflow < 2.5.0 support** [`#3669`](https://github.com/OpenLineage/OpenLineage/pull/3669) [@kacpermuda](https://github.com/kacpermuda)  
+  *Drops support for Airflow versions below 2.5.0*
+* **dbt: Use adapter rows_affected as outputStatistics** [`#3731`](https://github.com/OpenLineage/OpenLineage/pull/3731) [@dolfinus](https://github.com/dolfinus)  
+  *Uses adapter's rows_affected for output statistics instead of custom calculation*
+* **dbt: Move facets from processor module** [`#3713`](https://github.com/OpenLineage/OpenLineage/pull/3713) [@dolfinus](https://github.com/dolfinus)  
+  *Refactors dbt facets organization by moving them from processor module*
+* **Java: Speedup generateNewUUID** [`#3754`](https://github.com/OpenLineage/OpenLineage/pull/3754) [@dolfinus](https://github.com/dolfinus)  
+  *Improves performance of UUID generation in Java client*
+* **Java: Make UUIDUtils.generateStaticUUID random part more variative** [`#3709`](https://github.com/OpenLineage/OpenLineage/pull/3709) [@dolfinus](https://github.com/dolfinus)  
+  *Increases randomness in static UUID generation*
+* **Java: Add log if load from yaml fails** [`#3766`](https://github.com/OpenLineage/OpenLineage/pull/3766) [@mvitale](https://github.com/mvitale)  
+  *Adds logging when YAML configuration loading fails*
+* **Spark: Update Spark 4 dependency to 4.0.0 (remove -preview1 suffix)** [`#3751`](https://github.com/OpenLineage/OpenLineage/pull/3751) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Updates Spark 4 dependency to final 4.0.0 release*
+* **Spark: Disable module metadata file generation** [`#3785`](https://github.com/OpenLineage/OpenLineage/pull/3785) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Disables generation of module metadata files in Spark integration*
+* **Python: Use attr.define instead of attr.s** [`#3776`](https://github.com/OpenLineage/OpenLineage/pull/3776) [@kacpermuda](https://github.com/kacpermuda)  
+  *Modernizes Python code to use newer attrs API*
+* **Proxy: Remove native proxy** [`#3680`](https://github.com/OpenLineage/OpenLineage/pull/3680) [@mobuchowski](https://github.com/mobuchowski)  
+  *Removes the native proxy implementation*
+
+### Fixed
+
+* **Spark: Fix missing table path in InsertIntoHadoopFsRelationCommand** [`#3773`](https://github.com/OpenLineage/OpenLineage/pull/3773) [@dolfinus](https://github.com/dolfinus)  
+  *Fixes issue where table path was missing in InsertIntoHadoopFsRelationCommand*
+* **BigQuery: Filter temp inner jobs for bigquery indirect mode** [`#3722`](https://github.com/OpenLineage/OpenLineage/pull/3722) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Filters out temporary inner jobs in BigQuery indirect mode*
+* **dbt: dbt-ol should not error on job complete if there is no start event** [`#3749`](https://github.com/OpenLineage/OpenLineage/pull/3749) [@mobuchowski](https://github.com/mobuchowski)  
+  *Prevents errors when job completion occurs without corresponding start event*
+* **Flink: Do not hide OpenLineage config parsing errors** [`#3724`](https://github.com/OpenLineage/OpenLineage/pull/3724) [@dolfinus](https://github.com/dolfinus)  
+  *Improves error visibility for OpenLineage configuration parsing in Flink*
+* **Java: Prevent original events from being mutated in TransformTransport** [`#3728`](https://github.com/OpenLineage/OpenLineage/pull/3728) [@JDarDagran](https://github.com/JDarDagran)  
+  *Ensures original events remain immutable during transport transformations*
+* **Java: Fix visibility of GcpLineageTransportConfig.Mode** [`#3762`](https://github.com/OpenLineage/OpenLineage/pull/3762) [@ngorchakova](https://github.com/ngorchakova)  
+  *Corrects visibility modifier for GCP transport configuration mode*
+
+
+## [1.33.0](https://github.com/OpenLineage/OpenLineage/compare/1.32.1...1.33.0) - 2025-05-19
+
+### Added
+
+* **Python: add TransformTransport for Python client** [`#3697`](https://github.com/OpenLineage/OpenLineage/pull/3697) [@kacpermuda](https://github.com/kacpermuda)  
+  *Introduces the TransformTransport class for event transformations.*
+* **Spec: add CatalogDatasetFacet** [`#3659`](https://github.com/OpenLineage/OpenLineage/pull/3659) [@mobuchowski](https://github.com/mobuchowski)  
+  *Adds specification of the CatalogDatasetFacet.*
+* **Spark: implement CatalogDatasetFacet** [`#3695`](https://github.com/OpenLineage/OpenLineage/pull/3695) [@mobuchowski](https://github.com/mobuchowski)  
+  *Implements CatalogDatasetFacet for Spark integration.*
+* **Transport: add Amazon DataZone transport** [`#3685`](https://github.com/OpenLineage/OpenLineage/pull/3685) [@shinabel](https://github.com/shinabel)  
+  *Adds support for publishing events to Amazon DataZone via dedicated transport.*
+* **dbt: generate new runId for each start event** [`#3696`](https://github.com/OpenLineage/OpenLineage/pull/3696) [@dolfinus](https://github.com/dolfinus)  
+  *Ensures dbt start events have unique run identifiers when calling id generation methods multiple times.*
+* **JobNamespaceReplaceTransformer: modify parent run facet** [`#3706`](https://github.com/OpenLineage/OpenLineage/pull/3706) [@kacpermuda](https://github.com/kacpermuda)  
+  *Allows modifications of the parent run facet through JobNamespaceReplaceTransformer.*
+
+### Changed
+
+* **dbt: remove empty facets** [`#3700`](https://github.com/OpenLineage/OpenLineage/pull/3700) [@dolfinus](https://github.com/dolfinus)  
+  *Prevents empty facets from being emitted by dbt integration.*
+* **Spark: broaden exception handling for Iceberg table writes** [`#3686`](https://github.com/OpenLineage/OpenLineage/pull/3686) [@luke-hoffman1](https://github.com/luke-hoffman1)  
+  *Broadens exception handling to address missing column-level lineage issues.*
+
+### Fixed
+
+* **dbt: skip database if not set** [`#3707`](https://github.com/OpenLineage/OpenLineage/pull/3707) [@dolfinus](https://github.com/dolfinus)  
+  *Ensures database field is optional and handled gracefully.*
+* **Spark: don't swallow exceptions in getIcebergTable** [`#3688`](https://github.com/OpenLineage/OpenLineage/pull/3688) [@dolfinus](https://github.com/dolfinus)  
+  *Improves exception visibility during Iceberg table retrieval.*
+* **Flink 2: support JDBC naming** [`#3681`](https://github.com/OpenLineage/OpenLineage/pull/3681) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Correctly handles JDBC dataset naming conventions in Flink 2 integration.*
+
+## [1.32.1](https://github.com/OpenLineage/OpenLineage/compare/1.32.0...1.32.1) - 2025-05-06
+
+### Added
+
+* **Avro: support schema facet for Avro datasets** [`#3650`](https://github.com/OpenLineage/OpenLineage/pull/3650) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *This PR adds support for schema facets in Avro datasets.*
+* **Java: add UUIDUtils.generateStaticUUID utility** [`#3672`](https://github.com/OpenLineage/OpenLineage/pull/3672) [@dolfinus](https://github.com/dolfinus)  
+  *Provides utility method for generating static UUIDs.*
+
+### Fixed
+
+* **dbt: forward dbt's return code** [`#3682`](https://github.com/OpenLineage/OpenLineage/pull/3682) [@MassyB](https://github.com/MassyB)  
+  *Forwards dbt's process return code correctly.*
+* **dbt: handle dbt log file rotation** [`#3683`](https://github.com/OpenLineage/OpenLineage/pull/3683) [@MassyB](https://github.com/MassyB)  
+  *Implements log rotation handling to avoid log file overflow.*
+* **Flink2: fix dataset namespace resolvers** [`#3676`](https://github.com/OpenLineage/OpenLineage/pull/3676) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+  *Correctly resolves dataset namespaces in Flink2.*
+* **Spark: ensure Spark Job Name suffix extraction** [`#3667`](https://github.com/OpenLineage/OpenLineage/pull/3667) [@luke-hoffman1](https://github.com/luke-hoffman1)  
+  *Adds condition and unit test to correctly extract Spark Job Name suffix.*
+* **Spark: fix NoSuchElementException when calling get() on Option.None** [`#3673`](https://github.com/OpenLineage/OpenLineage/pull/3673) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Prevents exceptions when Option.None is encountered.*
+* **Spark: avoid InputDataset duplicates by skipping visited nodes** [`#3663`](https://github.com/OpenLineage/OpenLineage/pull/3663) [@ddebowczyk92](https://github.com/ddebowczyk92)  
+  *Ensures nodes aren't revisited, avoiding duplicate InputDataset creation.*
+
+
+## [1.32.0](https://github.com/OpenLineage/OpenLineage/compare/1.31.0...1.32.0) - 2025-04-24
+
+### Added
+
+* **Flink:** enhance JDBC extractors with additional types [`#3652`](https://github.com/OpenLineage/OpenLineage/pull/3652) [@HuangZhenQiu](https://github.com/HuangZhenQiu)
+
+### Changed
+
+* **Python:** bump supported Python version to 3.9 [`#3648`](https://github.com/OpenLineage/OpenLineage/pull/3648) [@mobuchowski](https://github.com/mobuchowski)
+* **Java:** generate Kinesis partitionKey using Run parent facet [`#3637`](https://github.com/OpenLineage/OpenLineage/pull/3637) [@dolfinus](https://github.com/dolfinus)
+
+### Fixed
+
+* **Core:** check for RunEvent v2 in filters and env_var_facet [`#3664`](https://github.com/OpenLineage/OpenLineage/pull/3664) [@kacpermuda](https://github.com/kacpermuda)
+* **dbt:** more robust handling of dbt CommandCompleted event [`#3661`](https://github.com/OpenLineage/OpenLineage/pull/3661) [@mobuchowski](https://github.com/mobuchowski)
+* **Spark:** define equals for TransformedInput to avoid duplicates [`#3644`](https://github.com/OpenLineage/OpenLineage/pull/3644) [@tnazarew](https://github.com/tnazarew)
+* **Flink:** prevent initializing Flink2 listener for Flink1 [`#3645`](https://github.com/OpenLineage/OpenLineage/pull/3645) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+* **Spark:** remove RepairTableCommandVisitor from Spark3VisitorFactoryImpl [`#3641`](https://github.com/OpenLineage/OpenLineage/pull/3641) [@ddebowczyk92](https://github.com/ddebowczyk92)
+
+## [1.31.0](https://github.com/OpenLineage/OpenLineage/compare/1.30.1...1.31.0) - 2025-04-10
+
+### Added
+
+* **Java:** added support for LDAP connection strings [`#3612`](https://github.com/OpenLineage/OpenLineage/pull/3612) [@luke-hoffman1](https://github.com/luke-hoffman1)
+* **dbt:** added support for dbt-glue adapter [`#3625`](https://github.com/OpenLineage/OpenLineage/pull/3625) [@mehdimld](https://github.com/mehdimld)
+* **Python:** introduced CLI for facet generator [`#3605`](https://github.com/OpenLineage/OpenLineage/pull/3605) [@kuba0221](https://github.com/kuba0221)
+* **spec:** optional root parent run ID added to ParentRunFacet [`#3572`](https://github.com/OpenLineage/OpenLineage/pull/3572) [@mobuchowski](https://github.com/mobuchowski)
+
+### Changed
+
+* **Java:** use parent.root facet as primary source for Kafka messageKey [`#3622`](https://github.com/OpenLineage/OpenLineage/pull/3622) [@dolfinus](https://github.com/dolfinus)
+* **Python:** use parent.root facet as primary source for Kafka messageKey [`#3624`](https://github.com/OpenLineage/OpenLineage/pull/3624) [@dolfinus](https://github.com/dolfinus)
+
+### Fixed
+
+* **Flink2:** fix job namespace retrieval from config [`#3621`](https://github.com/OpenLineage/OpenLineage/pull/3621) [@dolfinus](https://github.com/dolfinus)
+* **Spark:** extract column lineage from query string [`#3582`](https://github.com/OpenLineage/OpenLineage/pull/3582) [@ddebowczyk92](https://github.com/ddebowczyk92)
+* **Spark:** fix duplicate input dataset creation when RelationV2 is a child of SubqueryAlias [`#3607`](https://github.com/OpenLineage/OpenLineage/pull/3607) [@ddebowczyk92](https://github.com/ddebowczyk92)
+* **Java:** fix Oracle thin JDBC URL normalization [`#3586`](https://github.com/OpenLineage/OpenLineage/pull/3586) [@dolfinus](https://github.com/dolfinus)
+* **Spark: fix internal metrics sent through DebugFacet.** [`#3594`](https://github.com/OpenLineage/OpenLineage/pull/3594) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Register simple micrometer registry when no other registry configured.*
+
+### Fixed
+
+* **dbt: read structured log file incrementally** [`#3580`](https://github.com/OpenLineage/OpenLineage/pull/3580) [@MassyB](https://github.com/MassyB)
+  *Buffered writing could cause dbt to write broken log lines. This PR handles that case.*
+* **Python: fix user tags in event v2 events** [`#3576`](https://github.com/OpenLineage/OpenLineage/pull/3550) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *This PR fixes case where event v2 job and run events did not get user tags.*
+* **Spark: fix NullPointerException** [`#3583`](https://github.com/OpenLineage/OpenLineage/pull/3583) [@ddebowczyk92](https://github.com/ddebowczyk92)
+  *This PR fixes potential NullPointerException in SaveIntoDataSourceCommandVisitor.*
+
+## [1.30.0](https://github.com/OpenLineage/OpenLineage/compare/1.29.0...1.30.0) - 2025-03-14
+
+### Added
+
+* **Python: allow adding user-supplied tags facets from config** [`#3471`](https://github.com/OpenLineage/OpenLineage/pull/3471) [@leogodin217](https://github.com/leogodin217)
+  *User-supplied tags will allow the client to inject new tags or override tags provided by the integrations for jobs and runs.*
+* **Flink 2: added support for CheckpointFacet** [`#3531`](https://github.com/OpenLineage/OpenLineage/pull/3531) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Similar to Flink 1 integration, Flink 2 integration will emit CheckpointFacet.*
+* **Flink 2: include SQL comments in OL events** [`#3528`](https://github.com/OpenLineage/OpenLineage/pull/3528) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Table and field comments are available within generated OL events.*
+
+### Changed
+
+* **Java: remove deprecated configs: 'disabledFacets' and 'timeout'.** [`#3522`](https://github.com/OpenLineage/OpenLineage/pull/3522) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Configs have been replaced with: 'facets.<name of disabled facet>.disabled=true' and 'timeoutInMillis'.*
+
+### Fixed
+
+* **Spark: enable Iceberg metrics reporting for SparkSessionCatalog.** [`#3538`](https://github.com/OpenLineage/OpenLineage/pull/3538) [@sakjung](https://github.com/sakjung)
+  *Fixes support for metrics in Iceberg SparkSessionCatalog.*
+* **Spark: inject metrics reporter to Iceberg's RESTCatalog.** [`#3515`](https://github.com/OpenLineage/OpenLineage/pull/3515) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Fixes support for metrics in Iceberg RESTCatalog.*
+* **dbt: fix race condition on dbt log file** [`#3535`](https://github.com/OpenLineage/OpenLineage/pull/3535) [@MassyB](https://github.com/MassyB)
+  *Fixes race condition that was happening when using structured logs output.*
+* **dbt: fixes handling of skipped dbt nodes** [`#3545`](https://github.com/OpenLineage/OpenLineage/pull/3545) [@MassyB](https://github.com/MassyB)
+  *Skipped nodes no longed cause exceptions.*
+* **Spark: fix record count stats mixed with bytes stats** [`#3550`](https://github.com/OpenLineage/OpenLineage/pull/3550) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *InputStatistics facet for Iceberg datasets no longer produces incorrect stats.*
+* **Spark: catch input duplicates for SubqueryAlias.** [`#3548`](https://github.com/OpenLineage/OpenLineage/pull/3548) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Subquery alias no longer is duplicating the inputs.*
+* **Spark: catch Java 17 add opens exception.** [`#3552`](https://github.com/OpenLineage/OpenLineage/pull/3552) [@mobuchowski](https://github.com/mobuchowski)
+  *Fixes catching InaccessibleMethodException in Java 17 within SparkExtensionVisitor.*
+
+
+## [1.29.0](https://github.com/OpenLineage/OpenLineage/compare/1.28.0...1.29.0) - 2025-02-24
+
+### Added
+
+* **Python: allow adding user-supplied tags facets from config** [`#3471`](https://github.com/OpenLineage/OpenLineage/pull/3471) [@leogodin217](https://github.com/leogodin217)
+  *User-supplied tags will allow the client to inject new tags or override tags provided by the integrations for jobs and runs.*
+* **Java: allow adding user-supplied tags facets from config** [`#3493`](https://github.com/OpenLineage/OpenLineage/pull/3493) [@mobuchowski](https://github.com/mobuchowski)
+  *Enabled parsing tags from config in Java client and Spark conf.*
+
+### Changed
+
+* **Java: change async breaker timeout setting is not a real timeout.** [`#3487`](https://github.com/OpenLineage/OpenLineage/pull/3487) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Properly name case where TaskQueueCircuitBreaker allows a configurable blocking time after submitting a callable.*
+* **Flink: enabled circuit breaker for Flink 2 integration.** [`#3503`](https://github.com/OpenLineage/OpenLineage/pull/3503) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Native Flink integration is now isolated within circuit breaker call.*
+
+### Fixed
+
+* **Spark: use all of the underlying classloaders to find META-INF/services resources.** [`#3483`](https://github.com/OpenLineage/OpenLineage/pull/3483) [@ddebowczyk92](https://github.com/ddebowczyk92)
+  *ServiceLoader should not fail to load OpenLineageExtensionProvider implementations in certain configurations.*
+* **Flink: handle default null job manager address.** [`#3486`](https://github.com/OpenLineage/OpenLineage/pull/3486) [@MarquisC](https://github.com/MarquisC)
+  *Null Flink Job Manager address will default to localhost*
+* **dbt: handle tests on sources for structured logs option.** [`#3488`](https://github.com/OpenLineage/OpenLineage/pull/3488) [@MassyB](https://github.com/MassyB)
+  *Handle case for tests on sources which don't have the attached_node defined in the manifest.*
+
+
+## [1.28.0](https://github.com/OpenLineage/OpenLineage/compare/1.27.0...1.28.0) - 2025-02-06
+
+### Added
+
+* **Java: enable specifying custom SSL context** [`#3444`](https://github.com/OpenLineage/OpenLineage/pull/3444) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Enable providing configuration for SSL context within HTTP transport.*
+* **Spark: make Spark nodes filtering configurable.** [`#3442`](https://github.com/OpenLineage/OpenLineage/pull/3442) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Spark integration filters OpenLineage events for specific plan node classes. This can be now extended with extra config entries: `allowedSparkNodes` and `deniedSparkNodes`. See [Spark Configuration documentation](https://openlineage.io/docs/integrations/spark/configuration/spark_conf) for more details.*
+* **Java: add task queue based async circuit breaker.** [`#3437`](https://github.com/`OpenLineage/OpenLineage/pull/3437) [@aritrabandyo](https://github.com/aritrabandyo)
+  *This circuit breaker that executes task on a queue backed threadpool, gives up tasks if the queue is full, and keeps track of rejected tasks.*
+* **dbt: added initial support for Trino adapter** [`#3429`](https://github.com/OpenLineage/OpenLineage/pull/3429) [@whitleykeith](https://github.com/whitleykeith)
+  *This allows Trino integration to emit proper events containing Trino datasets.*
+* **Spark: increased coverage for Spark DML commands** [`#3430`](https://github.com/OpenLineage/OpenLineage/pull/3430) [@ssanthanam185](https://github.com/ssanthanam185)
+  *Adds coverage for AlterTableRecoverPartitionsCommandVisitor, RefreshTableCommandVisitor, RepairTableCommandVisitor.*
+
+### Changed
+
+* **Spark: the OpenLineageSparkListener was refactored to have a public, single-argument constructor taking an instance of SparkConf.** [`#3425`](https://github.com/OpenLineage/OpenLineage/pull/3425) [@d-m-h](https://github.com/d-m-h)
+  *This presents no functional change to the listener, however it will allow for improved initialisation of the listener in the future.*
+* **Spark: Unsupported catalog exception should be less verbose.** [`#3435`](https://github.com/OpenLineage/OpenLineage/pull/3435) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *In case of unsupported classes, `warn` logs without a stacktrace should be produced.*
+* **Spark: Directly expose the LogicalPlan and SparkPlan objects inside OpenLineageContext.** [`#3443`](https://github.com/OpenLineage/OpenLineage/pull/3443) [@d-m-h](https://github.com/d-m-h)
+  *This is an initial refactor to a larger code base change that will see the removal of direct access of the QueryExecution object. It has no functional change on the way the integration behaves.*
+
+### Fixed
+
+* **Spark: improve column lineage by including inputs within `COMPLETE` events.** [`#3434`](https://github.com/OpenLineage/OpenLineage/pull/3434) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Send input datasets in `COMPLETE` events while making sure version facet is attached on `START` only.
+* **dbt: ParentRunFacet is now correctly attached when using structured logs option.** [`#3432`](https://github.com/OpenLineage/OpenLineage/pull/3432) [@MassyB](https://github.com/MassyB)
+  *Fixes incorrect structure of ParentRunFacet.*
+
+## [1.27.0](https://github.com/OpenLineage/OpenLineage/compare/1.26.0...1.27.0) - 2025-01-20
+
+### Added
+
+* **Flink: Experimental version for flink native lineage listener.** [`#3099`](https://github.com/OpenLineage/OpenLineage/pull/3099) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *New flink listener to extract lineage through native Flink interfaces. Supports Flink SQL. Requires Flink 2.0.*
+* **dbt: add support for consuming dbt structured logs for test and build commands .** [`#3362`](https://github.com/OpenLineage/OpenLineage/pull/3362) [@MassyB](https://github.com/MassyB)
+  *New option for dbt integration now can handle test and build commands too.*
+* **Spark: allow attaching custom facets to RDDExecContext events.** [`#3379`](https://github.com/OpenLineage/OpenLineage/pull/3379) [@ssanthanam185](https://github.com/ssanthanam185)
+  *Events emitted from RDDExecutionContext now include custom facets that get loaded as part of InternalHandlerFactory.*
+* **spec: add DatasetTypeDatasetFacet.** [`#3390`](https://github.com/OpenLineage/OpenLineage/pull/3390) [@ssanthanam185](https://github.com/ssanthanam185)
+  *Events emitted from RDDExecutionContext now include custom facets that get loaded as part of InternalHandlerFactory.*
+
+### Changed
+
+* **Python: allow adding additionalProperties to Python facets** [`#3391`](https://github.com/OpenLineage/OpenLineage/pull/3391) [@JDarDagran](https://github.com/JDarDagran)
+  *Adds `with_additonal_properties` method that allows to create modified instance of facet with additional properties.*
+* **Spark: allow attaching custom facets to RDDExecContext events.** [`#3379`](https://github.com/OpenLineage/OpenLineage/pull/3379) [@ssanthanam185](https://github.com/ssanthanam185)
+  *Events emitted from RDDExecutionContext now include custom facets that get loaded as part of InternalHandlerFactory.*
+* **Spark: SerializedFromObject events aren't filtered for not-delta plans.** [`#3403`](https://github.com/OpenLineage/OpenLineage/pull/3403) [@ssanthanam185](https://github.com/ssanthanam185)
+  *Those events shouldn't be filtered outside Databricks/Delta ecosystem.*
+
+### Fixed
+* **Spark: fixed ClassLoader handling for OpenLineageExtensionProvider.** [`#3368`](https://github.com/OpenLineage/OpenLineage/pull/3368) [@ddebowczyk92](https://github.com/ddebowczyk92)
+  *Fixes ClassNotFoundException issue when using the openlineage-spark integration alongside a Spark connector that implements the spark-extension-interfaces due to class loader conflicts.*
+* **SQL: add minimal support for Snowflake LATERAL.** [`#3368`](https://github.com/OpenLineage/OpenLineage/pull/3368) [@cisenbe](https://github.com/cisenbe)
+  *SQL parser won't error on Snowflake's LATERAL keyword.*
+* **dbt: handle errors in parse_assertions** [`#3311`](https://github.com/OpenLineage/OpenLineage/pull/3311) [@dsaxton-1password](https://github.com/dsaxton-1password)
+  *dbt integration won't fail when looking at tests on seeds.*
+* **Spark: fix infinite loop in RDD flatten & perf optimization.** [`#3379`](https://github.com/OpenLineage/OpenLineage/pull/3379) [@ssanthanam185](https://github.com/ssanthanam185)
+  *Spark integration now correctly handles complex jobs that have cycles and nested RDD trees.*
+* **Python: FileTransport now correctly attaches `json` file extension.** [`#3404`](https://github.com/OpenLineage/OpenLineage/pull/3404) [@kacpermuda](https://github.com/kacpermuda)
+  *When append=False, the json file extension wasn't properly added before.*
+
+
+## [1.26.0](https://github.com/OpenLineage/OpenLineage/compare/1.25.0...1.26.0) - 2024-12-20
+
+### Added
+
+* **dbt: Consume dbt structured logs and report progress in real time.** [`#3314`](https://github.com/OpenLineage/OpenLineage/pull/3314) [@MassyB](https://github.com/MassyB)
+  *If --consume-structured-logs flag is set, dbt integration will consume dbt structured logs and report execution progress in real time.*
+* **Java: Add `transform` transport to allow event modification.** [`#3301`](https://github.com/OpenLineage/OpenLineage/pull/3301) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *New transport type allows to modify the event based on the specified transformer class.*
+* **Java: Parallel event emitting for composite transport.** [`#3305`](https://github.com/OpenLineage/OpenLineage/pull/3240)[`#3305`] [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Emit events in parallel for composite transport. Running in parallel is a default behaviour `continueOnFailure` set to `true`. Default value of `continueOnFailure` got changed from `false` to `true`.*
+* **Spark: Collect `ScanReport` and `CommitReport` in OpenLineage events when dealing with Iceberg tables.** [`#3256`](https://github.com/OpenLineage/OpenLineage/pull/3256) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Collects additional Iceberg metrics for datasets read or written through the library. Visit `Dataset Metrics` docs for more details.*
+* **dbt: add support for duckdb adapter** [`#3280`](https://github.com/OpenLineage/OpenLineage/pull/3280) [@mobuchowski](https://github.com/mobuchowski)
+  *Adds support for duckdb adapter for dbt integration.*
+
+### Changed
+
+* **Spark: Add `DatasetFactory` to support `Dataset` creation.** [`#3207`](https://github.com/OpenLineage/OpenLineage/pull/3207) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *Adds `DatasetFactory` to support `Dataset` creation. This class is used to create `Dataset` instances for `DatasetFactory`.*
+
+### Fixed
+
+* **Spark: fix inconsistent dataset naming** [`#3285`](https://github.com/OpenLineage/OpenLineage/pull/3285) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+  *GCS path now has correctly stripped leading slash*
+
+## [1.25.0](https://github.com/OpenLineage/OpenLineage/compare/1.24.2...1.25.0) - 2024-11-25
+
+### Added
+* **Dbt: Add support for Column-Level Lineage in dbt integration.** [`#3264`](https://github.com/OpenLineage/OpenLineage/pull/3264) [@mayurmadnani](https://github.com/mayurmadnani)
+    *Dbt integration now uses SQL parser to add information about collected column-level lineage.*
+* **Spark: Add input and output statistics about datasets read and written.** [`#3240`](https://github.com/OpenLineage/OpenLineage/pull/3240)[`#3263`](https://github.com/OpenLineage/OpenLineage/pull/3263) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)
+    *Fix issues related to existing output statistics collection mechanism and fetch input statistics. Output statistics contain now amount of files written, bytes size as well as records written. Input statistics contain bytes size and number of files read, while record count is collected only for DataSourceV2 sources.*
+* **Introduced InputStatisticsInputDatasetFacet** [`#3238`](https://github.com/OpenLineage/OpenLineage/pull/3238) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+    *Extend spec with a new facet InputStatisticsInputDatasetFacet modelled after a similar OutputStatisticsOutputDatasetFacet to contain statistics about input dataset read by a job.*
+
+### Changed
+* **Spark: Exclude META-INF/\*TransportBuilder from Spark Extension Interfaces** [`#3244`](https://github.com/OpenLineage/OpenLineage/pull/3244) [@tnazarew](https://github.com/tnazarew)
+    *Excludes META-INF/\*TransportBuilder to avoid version conflicts*
+* **Spark: enables building input/output facets through `DatasetFactory`** [`#3207`](https://github.com/OpenLineage/OpenLineage/pull/3207) [@pawel-big-lebowski](https://github.com/pawel-big-lebowski)  
+    *Adds extra capabilities into `DatasetFactory` class, marks some public developers' API methods as deprecated.*
+
+### Fixed
+
+* **dbt: fix compatibility with dbt v1.8** [`#3228`](https://github.com/OpenLineage/OpenLineage/pull/3228) [@NJA010](https://github.com/NJA010)
+    *dbt integration now takes into account modified `test_metadata` field*
+* **Spark: enabled Delta 3.x version compatibility** [`#3253`](https://github.com/OpenLineage/OpenLineage/pull/3253) [@Jorricks](https://github.com/Jorricks)  
+    *Take into account modified initialSnapshot name*
+
+## [1.24.2](https://github.com/OpenLineage/OpenLineage/compare/1.23.0...1.24.2) - 2024-11-05
+
+### Added
+* **Spark: Add Dataproc run facet to include jobType property** [`#3167`](https://github.com/OpenLineage/OpenLineage/pull/3167) [@codelixir](https://github.com/codelixir)  
+    *Updates the GCP Dataproc run facet to include jobType property*
+* **Add EnvironmentVariablesRunFacet to core spec** [`#3186`](https://github.com/OpenLineage/OpenLineage/pull/3186) [@JDarDagran](https://github.com/JDarDagran)  
+    *Use EnvironmentVariablesRunFacet in Python client*
+* **Add assertions for format in test events** [`#3221`](https://github.com/OpenLineage/OpenLineage/pull/3221) [@JDarDagran](https://github.com/JDarDagran)
+* **Spark: Add integration tests for EMR** [`#3142`](https://github.com/OpenLineage/OpenLineage/pull/3142) [@arturowczarek](https://github.com/arturowczarek)  
+    *Spark integration has integration tests for EMR*
+
+### Changed
+* **Move Kinesis to separate module, migrate HTTP transport to httpclient5** [`#3205`](https://github.com/OpenLineage/OpenLineage/pull/3205) [@mobuchowski](https://github.com/mobuchowski)  
+    *Moves Kinesis integration to a separate module and updates HTTP transport to use HttpClient 5.x*
+* **Docs: Upgrade docusaurus to 3.6** [`#3219`](https://github.com/OpenLineage/OpenLineage/pull/3219) [@arturowczarek](https://github.com/arturowczarek)
+* **Spark: Limit the Seq size in RddPathUtils::extract()** [`#3148`](https://github.com/OpenLineage/OpenLineage/pull/3148) [@codelixir](https://github.com/codelixir)  
+    *Adds flag to limit the logs in RddPathUtils::extract() to avoid OutOfMemoryError for large jobs*
+
+### Fixed
+* **Docs: Fix outdated Spark-related docs** [`#3215`](https://github.com/OpenLineage/OpenLineage/pull/3215) [@mobuchowski](https://github.com/mobuchowski)
+* **Fix docusaurus-mdx-checker errors** [`#3217`](https://github.com/OpenLineage/OpenLineage/pull/3217) [@arturowczarek](https://github.com/arturowczarek)
+* **[Integration/dbt] Parse dbt source tests** [`#3208`](https://github.com/OpenLineage/OpenLineage/pull/3208) [@MassyB](https://github.com/MassyB)  
+    *Fix: Consider dbt sources when looking for test results*
+* **Avoid tests in configurable test** [`#3141`](https://github.com/OpenLineage/OpenLineage/pull/3141) [@pawel-leszczynski](https://github.com/pawel-leszczynski)
 
 
 ## [1.23.0](https://github.com/OpenLineage/OpenLineage/compare/1.22.0...1.23.0) - 2024-10-04
 
 ### Added
-* **Java: added CompositeTransport** [`#3039`](https://github.com/OpenLineage/OpenLineage/pull/2944) [@JDarDagran](https://github.com/JDarDagran)   
+* **Java: added CompositeTransport** [`#3039`](https://github.com/OpenLineage/OpenLineage/pull/3039) [@JDarDagran](https://github.com/JDarDagran)   
     *This allows user to specify multiple targets to which OpenLineage events will be emitted.*
 * **Spark extension interfaces: support table extended sources** [`#3062`](https://github.com/OpenLineage/OpenLineage/pull/3062) [@Imbruced](https://github.com/Imbruced)  
     *Interfaces are now able to extract lineage from Table interface, not only RelationProvider.*

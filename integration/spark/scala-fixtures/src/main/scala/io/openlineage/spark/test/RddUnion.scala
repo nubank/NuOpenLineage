@@ -1,5 +1,5 @@
 /**
- * Copyright 2018-2024 contributors to the OpenLineage project
+ * Copyright 2018-2025 contributors to the OpenLineage project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,14 +8,14 @@ package io.openlineage.spark.test
 import org.apache.spark.sql.{SaveMode, SparkSession}
 
 object RddUnion extends App {
-  val spark = SparkSession.builder.appName("RddUnion").getOrCreate()
+  val spark = SparkSession.builder().appName("RddUnion").getOrCreate()
   val sc = spark.sparkContext
   import spark.implicits._
 
   val dataDir = System.getProperty("data.dir", "/tmp/scala-test")
 
   sc
-    .parallelize(Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+    .parallelize(Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).toIndexedSeq)
     .map(a => a.toString)
     .toDF()
     .write
@@ -23,7 +23,7 @@ object RddUnion extends App {
     .parquet(s"$dataDir/rdd_input1")
 
   sc
-    .parallelize(Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10))
+    .parallelize(Array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10).toIndexedSeq)
     .map(a => a.toString)
     .toDF()
     .write

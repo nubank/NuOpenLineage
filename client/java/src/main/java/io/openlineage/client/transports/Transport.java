@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -11,18 +11,6 @@ import lombok.NonNull;
 
 @NoArgsConstructor
 public abstract class Transport implements AutoCloseable {
-  enum Type {
-    CONSOLE,
-    FILE,
-    HTTP,
-    KAFKA,
-    KINESIS,
-    NOOP
-  };
-
-  @SuppressWarnings("PMD") // unused constructor type used for @NonNull validation
-  Transport(@NonNull final Type type) {}
-
   public abstract void emit(@NonNull OpenLineage.RunEvent runEvent);
 
   public abstract void emit(@NonNull OpenLineage.DatasetEvent datasetEvent);

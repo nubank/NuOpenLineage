@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -95,6 +95,7 @@ class CreateReplaceDatasetBuilderTest {
     when(logicalPlan.tableName()).thenReturn(tableName);
     when(logicalPlan.tableSpec()).thenReturn(tableSpec);
     when(logicalPlan.tableSchema()).thenReturn(schema);
+    when(logicalPlan.writeOptions()).thenReturn(new HashMap<>());
     verifyApply(
         (LogicalPlan) logicalPlan,
         commandProperties,
@@ -121,6 +122,7 @@ class CreateReplaceDatasetBuilderTest {
     when(logicalPlan.tableName()).thenReturn(tableName);
     when(logicalPlan.tableSpec()).thenReturn(tableSpec);
     when(logicalPlan.tableSchema()).thenReturn(schema);
+    when(logicalPlan.writeOptions()).thenReturn(new HashMap<>());
     verifyApply(
         (LogicalPlan) logicalPlan,
         commandProperties,
@@ -241,6 +243,7 @@ class CreateReplaceDatasetBuilderTest {
       when(logicalPlan.tableName()).thenReturn(tableName);
       when(logicalPlan.tableSpec()).thenReturn(tableSpec);
       when(logicalPlan.tableSchema()).thenReturn(schema);
+      when(logicalPlan.writeOptions()).thenReturn(new HashMap<>());
 
       when(PlanUtils3.getDatasetIdentifier(
               openLineageContext,

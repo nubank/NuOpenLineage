@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -19,6 +19,7 @@ import io.openlineage.client.OpenLineage.SchemaDatasetFacet;
 import io.openlineage.client.OpenLineage.StorageDatasetFacet;
 import io.openlineage.client.OpenLineage.SymlinksDatasetFacet;
 import io.openlineage.client.OpenLineageClientUtils;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.client.utils.DatasetIdentifier;
 import java.net.URI;
 import java.util.HashMap;
@@ -32,7 +33,7 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 
 /** Utility class to load serialized facets json string into a dataset builder */
 @Slf4j
-class ExtensionDataSourceV2Utils {
+public class ExtensionDataSourceV2Utils {
 
   public static final String OPENLINEAGE_DATASET_FACETS_PREFIX = "openlineage.dataset.facets.";
   private static Map<String, TypeReference> predefinedFacets;
@@ -57,7 +58,7 @@ class ExtensionDataSourceV2Utils {
    */
   public static void loadBuilder(
       OpenLineage openLineage,
-      OpenLineage.DatasetFacetsBuilder builder,
+      DatasetCompositeFacetsBuilder builder,
       DataSourceV2Relation relation) {
     Map<String, String> properties = relation.table().properties();
 
@@ -70,7 +71,7 @@ class ExtensionDataSourceV2Utils {
                     OpenLineageClientUtils.fromJson(
                         properties.get(OPENLINEAGE_DATASET_FACETS_PREFIX + field),
                         predefinedFacets.get(field));
-                FieldUtils.writeField(builder, field, o, true);
+                FieldUtils.writeField(builder.getFacets(), field, o, true);
               } catch (IllegalAccessException | RuntimeException e) {
                 log.warn("Couldn't serialize and assign facet", e);
               }
@@ -88,10 +89,12 @@ class ExtensionDataSourceV2Utils {
                     OpenLineageClientUtils.fromJson(
                         properties.get(OPENLINEAGE_DATASET_FACETS_PREFIX + key),
                         new TypeReference<DatasetFacet>() {});
-                builder.put(
-                    key,
-                    enrichWithProducerUrl(
-                        datasetFacet, openLineage.newDatasetFacet().get_producer()));
+                builder
+                    .getFacets()
+                    .put(
+                        key,
+                        enrichWithProducerUrl(
+                            datasetFacet, openLineage.newDatasetFacet().get_producer()));
               } catch (RuntimeException e) {
                 log.warn("Couldn't serialize and assign facet", e);
               }
@@ -143,6 +146,16 @@ class ExtensionDataSourceV2Utils {
         .map(table -> table.properties())
         .filter(Objects::nonNull)
         .filter(props -> props.containsKey("openlineage.dataset.name"))
+        .filter(props -> props.containsKey("openlineage.dataset.namespace"))
+        .isPresent();
+  }
+
+  public static boolean hasQueryExtensionLineage(DataSourceV2Relation relation) {
+    return Optional.ofNullable(relation)
+        .map(r -> r.table())
+        .map(table -> table.properties())
+        .filter(Objects::nonNull)
+        .filter(props -> props.containsKey("openlineage.dataset.query"))
         .filter(props -> props.containsKey("openlineage.dataset.namespace"))
         .isPresent();
   }

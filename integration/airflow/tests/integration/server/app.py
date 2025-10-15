@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 import json
@@ -13,7 +13,8 @@ from flask import Flask, g, jsonify, request
 
 app = Flask(__name__)
 
-DATABASE = "/app/tmp.db"
+
+DATABASE = os.getenv("DATABASE_FILE", "/app/tmp.db")
 
 logging.basicConfig(
     format="[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s",
@@ -91,6 +92,7 @@ def lineage():
         logger.info(f"job_name: {job_name}")
         logger.info(json.dumps(request.json, sort_keys=True))
         conn.commit()
+        time.sleep(0.1)
         dump(request.data)
         return "", 200
     elif request.method == "GET":

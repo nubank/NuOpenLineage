@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
@@ -16,11 +16,11 @@ from openlineage.common.models import DbColumn, DbTableSchema
 from openlineage.common.sql import DbTableMeta
 
 
-@attr.s
+@attr.define
 class RedshiftFacets:
-    run_facets: Dict[str, BaseFacet] = attr.ib()
-    inputs: List[Dataset] = attr.ib()
-    output: List[Dataset] = attr.ib()
+    run_facets: Dict[str, BaseFacet]
+    inputs: List[Dataset]
+    output: List[Dataset]
 
 
 class RedshiftDataDatasetsProvider:

@@ -1,4 +1,4 @@
-// Copyright 2018-2024 contributors to the OpenLineage project
+// Copyright 2018-2025 contributors to the OpenLineage project
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::test_utils::*;
@@ -204,17 +204,37 @@ fn select_identifier_function() {
 
     for (in_table_id, in_tables) in &test_cases {
         for dialect in &dialects {
-            let sql = format!("SELECT col1 FROM identifier({}) WHERE x = 1;", in_table_id);
+            let sql = format!("SELECT col1 FROM identifier({in_table_id}) WHERE x = 1;");
             assert_eq!(
                 test_sql_dialect(&sql, dialect).unwrap().table_lineage,
                 TableLineage {
                     in_tables: in_tables.clone(),
                     out_tables: vec![],
                 },
-                "Failed for dialect: {} with SQL: {}",
-                dialect,
-                sql
+                "Failed for dialect: {dialect} with SQL: {sql}"
             );
         }
     }
+}
+
+#[test]
+fn select_snowflake_lateral() {
+    assert_eq!(
+        test_sql_dialect(
+            "SELECT id as ID,
+        f.value AS Contact,
+        f1.value:type AS Type,
+        f1.value:content AS Details
+        FROM my_snowflake_schema.persons p,
+        lateral flatten(input => p.c, path => 'contact') f,
+        lateral flatten(input => f.value:business) f1;",
+            "snowflake"
+        )
+        .unwrap()
+        .table_lineage,
+        TableLineage {
+            in_tables: vec![table("my_snowflake_schema.persons")],
+            out_tables: vec![],
+        }
+    )
 }

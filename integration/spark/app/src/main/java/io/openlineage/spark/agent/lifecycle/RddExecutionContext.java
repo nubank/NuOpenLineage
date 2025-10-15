@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -8,22 +8,31 @@ package io.openlineage.spark.agent.lifecycle;
 import static io.openlineage.spark.agent.util.TimeUtils.toZonedTime;
 
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.OpenLineage.InputDataset;
+import io.openlineage.client.OpenLineage.OutputDataset;
+import io.openlineage.client.OpenLineage.OutputDatasetBuilder;
+import io.openlineage.client.OpenLineage.OutputStatisticsOutputDatasetFacet;
+import io.openlineage.client.OpenLineage.RunEvent.EventType;
+import io.openlineage.client.OpenLineage.RunFacetsBuilder;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.client.utils.UUIDUtils;
 import io.openlineage.spark.agent.EventEmitter;
 import io.openlineage.spark.agent.NuEventEmitter;
 import io.openlineage.spark.agent.OpenLineageSparkListener;
+import io.openlineage.spark.agent.JobMetricsHolder;
+import io.openlineage.spark.agent.JobMetricsHolder.Metric;
 import io.openlineage.spark.agent.facets.ErrorFacet;
-import io.openlineage.spark.agent.facets.builder.GcpJobFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.GcpRunFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.SparkJobDetailsFacetBuilder;
 import io.openlineage.spark.agent.facets.builder.SparkProcessingEngineRunFacetBuilderDelegate;
 import io.openlineage.spark.agent.facets.builder.SparkPropertyFacetBuilder;
-import io.openlineage.spark.agent.util.GCPUtils;
+import io.openlineage.spark.agent.util.FacetUtils;
 import io.openlineage.spark.agent.util.PathUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.agent.util.StreamingContextUtils;
+import io.openlineage.spark.agent.vendor.gcp.facets.builder.GcpJobFacetBuilder;
+import io.openlineage.spark.agent.vendor.gcp.facets.builder.GcpRunFacetBuilder;
+import io.openlineage.spark.agent.vendor.gcp.util.GCPUtils;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.naming.JobNameBuilder;
 import java.io.IOException;
@@ -33,13 +42,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.JobConf;
@@ -64,15 +75,21 @@ class RddExecutionContext implements ExecutionContext {
   private static final String SPARK_JOB_TYPE = "RDD_JOB";
 
   private final EventEmitter eventEmitter;
+  private final OpenLineageRunEventBuilder runEventBuilder;
   private final UUID runId = UUIDUtils.generateNewUUID();
   private final OpenLineageContext olContext;
   private List<URI> inputs = Collections.emptyList();
   private List<URI> outputs = Collections.emptyList();
   private String jobSuffix;
+  private Integer activeJobId;
 
-  public RddExecutionContext(OpenLineageContext olContext, EventEmitter eventEmitter) {
+  public RddExecutionContext(
+      OpenLineageContext olContext,
+      EventEmitter eventEmitter,
+      OpenLineageRunEventBuilder runEventBuilder) {
     this.eventEmitter = eventEmitter;
     this.olContext = olContext;
+    this.runEventBuilder = runEventBuilder;
   }
 
   @Override
@@ -91,12 +108,13 @@ class RddExecutionContext implements ExecutionContext {
   @SuppressWarnings("PMD") // f.setAccessible(true);
   public void setActiveJob(ActiveJob activeJob) {
     log.debug("setActiveJob within RddExecutionContext {}", activeJob);
+    olContext.setActiveJobId(activeJob.jobId());
     RDD<?> finalRDD = activeJob.finalStage().rdd();
     this.jobSuffix = nameRDD(finalRDD);
-    Set<RDD<?>> rdds = Rdds.flattenRDDs(finalRDD);
+    Set<RDD<?>> rdds = Rdds.flattenRDDs(finalRDD, new HashSet<>());
     log.debug("flattenRDDs {}", rdds);
     this.inputs = findInputs(rdds);
-    Configuration jc = new JobConf();
+    JobConf jobConf = new JobConf();
     if (activeJob.finalStage() instanceof ResultStage) {
       ResultStage resultStage = (ResultStage) activeJob.finalStage();
       try {
@@ -108,12 +126,12 @@ class RddExecutionContext implements ExecutionContext {
           Field confField = HadoopMapRedWriteConfigUtil.class.getDeclaredField("conf");
           confField.setAccessible(true);
           SerializableJobConf serializableJobConf = (SerializableJobConf) confField.get(conf);
-          jc = serializableJobConf.value();
+          jobConf = serializableJobConf.value();
         } else if (conf instanceof HadoopMapReduceWriteConfigUtil) {
           Field confField = HadoopMapReduceWriteConfigUtil.class.getDeclaredField("conf");
           confField.setAccessible(true);
           SerializableJobConf serializableJobConf = (SerializableJobConf) confField.get(conf);
-          jc = serializableJobConf.value();
+          jobConf = serializableJobConf.value();
         } else {
           log.info(
               "Config field is not HadoopMapRedWriteConfigUtil or HadoopMapReduceWriteConfigUtil, it's {}",
@@ -122,11 +140,10 @@ class RddExecutionContext implements ExecutionContext {
       } catch (IllegalAccessException | NoSuchFieldException nfe) {
         log.warn("Unable to access job conf from RDD", nfe);
       }
-      log.info("Found job conf from RDD {}", jc);
-    } else {
-      jc = OpenLineageSparkListener.getConfigForRDD(finalRDD);
+      log.info("Found job conf from RDD {}", jobConf);
     }
-    this.outputs = findOutputs(finalRDD, jc);
+    this.activeJobId = activeJob.jobId();
+    this.outputs = findOutputs(finalRDD, jobConf);
   }
 
   /**
@@ -140,9 +157,9 @@ class RddExecutionContext implements ExecutionContext {
    */
   private Field getConfigField(ResultStage resultStage) throws NoSuchFieldException {
     try {
-      return resultStage.func().getClass().getDeclaredField("config$1");
-    } catch (NoSuchFieldException e) {
       return resultStage.func().getClass().getDeclaredField("arg$1");
+    } catch (NoSuchFieldException e) {
+      return resultStage.func().getClass().getDeclaredField("config$1");
     }
   }
 
@@ -221,11 +238,10 @@ class RddExecutionContext implements ExecutionContext {
                     .getOpenLineage()
                     .newRunBuilder()
                     .runId(runId)
-                    .facets(buildRunFacets(null, jobStart))
+                    .facets(buildRunFacets(null, jobStart).build())
                     .build())
             .job(buildJob(jobStart.jobId()))
             .build();
-
     log.debug("Posting event for start {}: {}", jobStart, event);
     NuEventEmitter.emit(event, eventEmitter);
   }
@@ -242,29 +258,44 @@ class RddExecutionContext implements ExecutionContext {
       log.info("Output RDDs are empty: skipping sending OpenLineage event");
       return;
     }
+
+    List<InputDataset> inputDatasets = buildInputs(inputs);
+    List<OutputDataset> outputDatasets = buildOutputs(outputs);
+    RunFacetsBuilder runFacetsBuilder =
+        buildRunFacets(buildJobErrorFacet(jobEnd.jobResult()), jobEnd);
+
+    olContext.getLineageRunStatus().capturedInputs(inputDatasets.size());
+    olContext.getLineageRunStatus().capturedOutputs(outputDatasets.size());
+    FacetUtils.attachSmartDebugFacet(olContext, runFacetsBuilder);
+
+    EventType eventType = getEventType(jobEnd.jobResult());
     OpenLineage.RunEvent event =
         olContext
             .getOpenLineage()
             .newRunEventBuilder()
             .eventTime(toZonedTime(jobEnd.time()))
-            .eventType(getEventType(jobEnd.jobResult()))
-            .inputs(buildInputs(inputs))
-            .outputs(buildOutputs(outputs))
+            .eventType(eventType)
+            .inputs(inputDatasets)
+            .outputs(outputDatasets)
             .run(
                 olContext
                     .getOpenLineage()
                     .newRunBuilder()
                     .runId(runId)
-                    .facets(buildRunFacets(buildJobErrorFacet(jobEnd.jobResult()), jobEnd))
+                    .facets(runFacetsBuilder.build())
                     .build())
             .job(buildJob(jobEnd.jobId()))
             .build();
+    if (eventType.equals(EventType.COMPLETE)) {
+      // clean up metrics on complete only
+      JobMetricsHolder.getInstance().cleanUp(jobEnd.jobId());
+    }
 
-    log.debug("Posting event for end {}: {}", jobEnd, event);
     NuEventEmitter.emit(event, eventEmitter);
   }
 
-  protected OpenLineage.RunFacets buildRunFacets(ErrorFacet jobError, SparkListenerEvent event) {
+  protected OpenLineage.RunFacetsBuilder buildRunFacets(
+      ErrorFacet jobError, SparkListenerEvent event) {
     OpenLineage.RunFacetsBuilder runFacetsBuilder =
         olContext.getOpenLineage().newRunFacetsBuilder();
     runFacetsBuilder.parent(buildApplicationParentFacet());
@@ -277,7 +308,9 @@ class RddExecutionContext implements ExecutionContext {
     addGcpRunFacet(runFacetsBuilder, event);
     addSparkJobDetailsFacet(runFacetsBuilder, event);
 
-    return runFacetsBuilder.build();
+    runEventBuilder.buildRunFacets(event, runFacetsBuilder);
+
+    return runFacetsBuilder;
   }
 
   private void addProcessingEventFacet(OpenLineage.RunFacetsBuilder b0) {
@@ -316,7 +349,16 @@ class RddExecutionContext implements ExecutionContext {
     return PlanUtils.parentRunFacet(
         eventEmitter.getApplicationRunId(),
         eventEmitter.getApplicationJobName(),
-        eventEmitter.getJobNamespace());
+        eventEmitter.getJobNamespace(),
+        eventEmitter
+            .getRootParentRunId()
+            .orElse(eventEmitter.getParentRunId().orElse(eventEmitter.getApplicationRunId())),
+        eventEmitter
+            .getRootParentJobName()
+            .orElse(eventEmitter.getParentJobName().orElse(eventEmitter.getApplicationJobName())),
+        eventEmitter
+            .getRootParentJobNamespace()
+            .orElse(eventEmitter.getParentJobNamespace().orElse(eventEmitter.getJobNamespace())));
   }
 
   protected OpenLineage.JobFacets buildJobFacets(SparkListenerEvent sparkListenerEvent) {
@@ -349,16 +391,13 @@ class RddExecutionContext implements ExecutionContext {
     if (jobSuffix == null) {
       suffix = String.valueOf(jobId);
     }
+    OpenLineage ol = olContext.getOpenLineage();
 
-    return olContext
-        .getOpenLineage()
-        .newJobBuilder()
+    return ol.newJobBuilder()
         .namespace(eventEmitter.getJobNamespace())
         .name(JobNameBuilder.build(olContext, suffix))
         .facets(
-            olContext
-                .getOpenLineage()
-                .newJobFacetsBuilder()
+            ol.newJobFacetsBuilder()
                 .jobType(
                     olContext
                         .getOpenLineage()
@@ -375,7 +414,12 @@ class RddExecutionContext implements ExecutionContext {
   }
 
   protected List<OpenLineage.OutputDataset> buildOutputs(List<URI> outputs) {
-    return outputs.stream().map(this::buildOutputDataset).collect(Collectors.toList());
+    return outputs.stream()
+        .map(
+            d ->
+                buildOutputDataset(
+                    d, outputs.size() == 1)) // output statistics only for single output
+        .collect(Collectors.toList());
   }
 
   protected OpenLineage.InputDataset buildInputDataset(URI uri) {
@@ -388,22 +432,62 @@ class RddExecutionContext implements ExecutionContext {
         .build();
   }
 
-  protected OpenLineage.OutputDataset buildOutputDataset(URI uri) {
+  protected OpenLineage.OutputDataset buildOutputDataset(URI uri, boolean withOutputStatistics) {
     DatasetIdentifier di = PathUtils.fromURI(uri);
-    return olContext
-        .getOpenLineage()
-        .newOutputDatasetBuilder()
-        .name(di.getName())
-        .namespace(di.getNamespace())
-        .build();
+
+    OutputDatasetBuilder builder = olContext.getOpenLineage().newOutputDatasetBuilder();
+    if (withOutputStatistics) {
+      getOutputStatisticsFacet()
+          .ifPresent(
+              f ->
+                  olContext
+                      .getOpenLineage()
+                      .newOutputDatasetOutputFacetsBuilder()
+                      .outputStatistics(f)
+                      .build());
+    }
+
+    return builder.name(di.getName()).namespace(di.getNamespace()).build();
+  }
+
+  private Optional<OutputStatisticsOutputDatasetFacet> getOutputStatisticsFacet() {
+    if (!olContext.getActiveJobId().isPresent()) {
+      log.warn("No active jobId found in context");
+      return Optional.empty();
+    }
+
+    JobMetricsHolder jobMetricsHolder = JobMetricsHolder.getInstance();
+    Map<Metric, Number> metrics = jobMetricsHolder.pollMetrics(activeJobId);
+
+    if (!metrics.containsKey(JobMetricsHolder.Metric.WRITE_BYTES)
+        && !metrics.containsKey(JobMetricsHolder.Metric.WRITE_RECORDS)) {
+      log.warn("No write metrics found in job {}", activeJobId);
+      return Optional.empty();
+    }
+
+    return Optional.of(
+        olContext
+            .getOpenLineage()
+            .newOutputStatisticsOutputDatasetFacetBuilder()
+            .rowCount(
+                Optional.of(metrics.get(JobMetricsHolder.Metric.WRITE_RECORDS))
+                    .map(Number::longValue)
+                    .orElse(null))
+            .size(
+                Optional.of(metrics.get(JobMetricsHolder.Metric.WRITE_BYTES))
+                    .map(Number::longValue)
+                    .orElse(null))
+            .fileCount(
+                Optional.of(metrics.get(Metric.FILES_WRITTEN)).map(Number::longValue).orElse(null))
+            .build());
   }
 
   protected List<OpenLineage.InputDataset> buildInputs(List<URI> inputs) {
     return inputs.stream().map(this::buildInputDataset).collect(Collectors.toList());
   }
 
-  protected List<URI> findOutputs(RDD<?> rdd, Configuration config) {
-    Path outputPath = getOutputPath(rdd, config);
+  protected List<URI> findOutputs(RDD<?> rdd, JobConf jobConf) {
+    Path outputPath = getOutputPath(rdd, jobConf);
     log.info("Found output path {} from RDD {}", outputPath, rdd);
     if (outputPath != null) {
       return Collections.singletonList(outputPath.toUri());
@@ -426,26 +510,18 @@ class RddExecutionContext implements ExecutionContext {
     }
   }
 
-  protected static Path getOutputPath(RDD<?> rdd, Configuration config) {
-    Path path = null;
-    if (config != null) {
-      // "new" mapred api
-      JobConf jc;
-      if (config instanceof JobConf) {
-        jc = (JobConf) config;
-      } else {
-        jc = new JobConf(config);
-      }
-      log.debug("JobConf {}", jc);
-      path = org.apache.hadoop.mapred.FileOutputFormat.getOutputPath(jc);
-      if (path == null) {
-        try {
-          // old fashioned mapreduce api
-          log.debug("Path is null, trying to use old fashioned mapreduce api");
-          path = org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.getOutputPath(new Job(jc));
-        } catch (IOException exception) {
-          exception.printStackTrace(System.out);
-        }
+  protected static Path getOutputPath(RDD<?> rdd, JobConf jobConf) {
+    Path path;
+    log.debug("JobConf {}", jobConf);
+    path = org.apache.hadoop.mapred.FileOutputFormat.getOutputPath(jobConf);
+    if (path == null) {
+      try {
+        // old fashioned mapreduce api
+        log.debug("Path is null, trying to use old fashioned mapreduce api");
+        path =
+            org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.getOutputPath(new Job(jobConf));
+      } catch (IOException exception) {
+        exception.printStackTrace(System.out);
       }
     }
 

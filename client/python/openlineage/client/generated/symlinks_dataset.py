@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ class Identifier(RedactMixin):
     name: str
     """The dataset name"""
 
-    type: str
+    type: str  # noqa: A003
     """Identifier type"""
 
 

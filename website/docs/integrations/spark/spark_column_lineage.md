@@ -3,11 +3,6 @@ sidebar_position: 7
 title: Column-Level Lineage
 ---
 
-:::warning
-
-Column-level lineage works only with Spark 3.
-:::
-
 :::info
 Column-level lineage for Spark is turned on by default and requires no additional work to be done. The following documentation describes its internals. 
 :::
@@ -60,7 +55,7 @@ This is used evaluate which inputs influenced certain output and what kind of in
 ### Expression dependency collection process
   
 For each node in `LogicalPlan` the `ExpressionDependencyCollector` attempts to extract the column lineage information based on its type.
-First it goes through `ColumnLineageVisitors` to check if any applies to current node, if so then it extract dependencies from them.
+First it goes through `ColumnLineageVisitors` to check if any applies to current node, if so then it extracts dependencies from them.
 Next if the node is `LogicalRelation` and relation type is `JDBCRelation`, the sql-parser extracts lineage data from query string itself.
 
 :::warning
@@ -77,7 +72,7 @@ so they need to be treated differently than normal dependencies.
 For each of those nodes the new `ExprId` is created to represent "all outputs", all its dependencies will be of `INDIRECT` type.
 
 For each of the `expressions` the collector tries to go through it and possible children expressions and add them to `exprDependencies` map with appropriate transformation type and `masking` flag.
-Most of the expressions represent `DIRECT` transformation, only exceptions are `If` and `CaseWhen` which contain condition expressions.
+Most of the expressions represent `DIRECT` transformation, only exceptions are `If`, `CaseWhen` and `Coalesce` which contain condition expressions.
 
 ### Facet building process
 
@@ -92,46 +87,3 @@ To unravel two dependencies implement following logic:
 
 The inputs are also mapped for all dataset dependencies. The result is added to each output. 
 Finally, the list of outputs with all their inputs is mapped to `ColumnLineageDatasetFacetFields` object.
-
-## Writing custom extensions
-
-Spark framework is known for its great ability to be extended by custom libraries capable of reading or writing to anything. In case of having a custom implementation, we prepared an ability to extend column-level lineage implementation to be able to retrieve information from other input or output LogicalPlan nodes. 
-
-Creating such an extension requires implementing a following interface: 
-
-```
-/** Interface for implementing custom collectors of column-level lineage. */
-interface CustomColumnLineageVisitor {
-
-  /**
-   * Collect inputs for a given {@link LogicalPlan}. Column-level lineage mechanism traverses
-   * LogicalPlan on its node. This method will be called for each traversed node. Input information
-   * should be put into builder.
-   *
-   * @param node
-   * @param builder
-   */
-  void collectInputs(LogicalPlan node, ColumnLevelLineageBuilder builder);
-
-  /**
-   * Collect outputs for a given {@link LogicalPlan}. Column-level lineage mechanism traverses
-   * LogicalPlan on its node. This method will be called for each traversed node. Output information
-   * should be put into builder.
-   *
-   * @param node
-   * @param builder
-   */
-  void collectOutputs(LogicalPlan node, ColumnLevelLineageBuilder builder);
-
-  /**
-   * Collect expressions for a given {@link LogicalPlan}. Column-level lineage mechanism traverses
-   * LogicalPlan on its node. This method will be called for each traversed node. Expression
-   * dependency information should be put into builder.
-   *
-   * @param node
-   * @param builder
-   */
-  void collectExpressionDependencies(LogicalPlan node, ColumnLevelLineageBuilder builder);
-}
-```
-and making it available for Service Loader (implementation class name has to be put in a resource file `META-INF/services/io.openlineage.spark.agent.lifecycle.plan.column.CustomColumnLineageVisitor`).

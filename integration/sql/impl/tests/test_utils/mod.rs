@@ -1,4 +1,4 @@
-// Copyright 2018-2024 contributors to the OpenLineage project
+// Copyright 2018-2025 contributors to the OpenLineage project
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(dead_code)]
@@ -15,7 +15,11 @@ pub fn test_multiple_sql(sqls: Vec<&str>) -> Result<SqlMeta> {
 }
 
 pub fn test_multiple_sql_dialect(sqls: Vec<&str>, dialect: &str) -> Result<SqlMeta> {
-    parse_multiple_statements(sqls, get_dialect(dialect), None)
+    parse_multiple_statements(
+        sqls.iter().map(|x: &&str| x.to_string()).collect(),
+        get_dialect(dialect),
+        None,
+    )
 }
 
 pub fn test_sql_dialect(sql: &str, dialect: &str) -> Result<SqlMeta> {

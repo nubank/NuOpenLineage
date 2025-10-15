@@ -1,10 +1,10 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, ClassVar, Type, cast
+from typing import Any, ClassVar, cast
 
 import attr
 
@@ -15,8 +15,8 @@ def import_from_string(path: str) -> type[Any]:
     try:
         module_path, target = path.rsplit(".", 1)
         module = importlib.import_module(module_path)
-        return cast(Type[Any], getattr(module, target))
-    except Exception as e:  # noqa: BLE001
+        return cast("type[Any]", getattr(module, target))
+    except Exception as e:
         log.warning(e)
         msg = f"Failed to import {path}"
         raise ImportError(msg) from e
@@ -34,6 +34,25 @@ def try_import_from_string(path: str) -> type[Any] | None:
 def get_only_specified_fields(clazz: type[Any], params: dict[str, Any]) -> dict[str, Any]:
     field_keys = [item.name for item in attr.fields(clazz)]
     return {key: value for key, value in params.items() if key in field_keys}
+
+
+def deep_merge_dicts(dict1: dict[Any, Any], dict2: dict[Any, Any]) -> dict[Any, Any]:
+    """Deep merges two dictionaries.
+
+    This function merges two dictionaries while handling nested dictionaries.
+    For keys that exist in both dictionaries, the values from dict2 take precedence.
+    If a key exists in both dictionaries and the values are dictionaries themselves,
+    they are merged recursively.
+    This function merges only dictionaries. If key is of different type, e.g. list
+    it does not work properly.
+    """
+    merged = dict1.copy()
+    for k, v in dict2.items():
+        if k in merged and isinstance(v, dict):
+            merged[k] = deep_merge_dicts(merged.get(k, {}), v)
+        else:
+            merged[k] = v
+    return merged
 
 
 class RedactMixin:

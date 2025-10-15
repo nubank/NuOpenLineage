@@ -1,8 +1,13 @@
+/*
+/* Copyright 2018-2025 contributors to the OpenLineage project
+/* SPDX-License-Identifier: Apache-2.0
+*/
+
 rootProject.name = 'openlineage-flink'
 
 include 'shared'
+include 'flink1'
+include 'flink2'
 include 'flink115'
 include 'flink117'
 include 'flink118'
-include 'app'
-include 'examples:stateful'

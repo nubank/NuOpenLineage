@@ -1,18 +1,25 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark3.agent.lifecycle.plan;
 
-import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.InputDataset;
+import io.openlineage.client.OpenLineage.InputDatasetFacet;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.spark.api.AbstractQueryPlanInputDatasetBuilder;
 import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
+import io.openlineage.spark.api.OpenLineageEventHandlerFactory;
+import io.openlineage.spark.api.Vendors;
 import io.openlineage.spark3.agent.utils.DataSourceV2RelationDatasetExtractor;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.BiConsumer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.scheduler.SparkListenerEvent;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
@@ -48,9 +55,29 @@ public final class DataSourceV2ScanRelationOnEndInputDatasetBuilder
     }
 
     DataSourceV2Relation relation = plan.relation();
-    OpenLineage.DatasetFacetsBuilder datasetFacetsBuilder =
-        context.getOpenLineage().newDatasetFacetsBuilder();
-    return DataSourceV2RelationDatasetExtractor.extract(
+    DatasetCompositeFacetsBuilder datasetFacetsBuilder =
+        new DatasetCompositeFacetsBuilder(context.getOpenLineage());
+
+    // vendors' input dataset facets builders on scan
+    Collection<OpenLineageEventHandlerFactory> handlerFactories =
+        Optional.ofNullable(context.getVendors())
+            .map(Vendors::getEventHandlerFactories)
+            .orElse(Collections.emptyList());
+
+    handlerFactories.stream()
+        .flatMap(v -> v.createInputDatasetFacetBuilders(context).stream())
+        .forEach(
+            f ->
+                f.accept(
+                    plan.scan(),
+                    new BiConsumer<String, InputDatasetFacet>() {
+                      @Override
+                      public void accept(String s, InputDatasetFacet inputDatasetFacet) {
+                        datasetFacetsBuilder.getInputFacets().put(s, inputDatasetFacet);
+                      }
+                    }));
+
+    return DataSourceV2RelationDatasetExtractor.extractIncludingVersionFacet(
         factory, context, relation, datasetFacetsBuilder);
   }
 

@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -87,13 +87,8 @@ class FacetsConfigTest {
                 true,
                 "facetG",
                 true));
-  }
 
-  @Test
-  void testMergingDisabledFacets() {
-    FacetsConfig facetsConfig = new FacetsConfig();
-    facetsConfig.setDeprecatedDisabledFacets(new String[] {"facetA", "facetB"});
-    facetsConfig.setDisabledFacets(ImmutableMap.of("facetA", false, "facetC", true));
-    assertThat(facetsConfig.getEffectiveDisabledFacets()).containsExactly("facetB", "facetC");
+    assertThat(facetsConfig.isFacetEnabled("facetD")).isFalse();
+    assertThat(facetsConfig.isFacetEnabled("subsystemA.facetE")).isTrue();
   }
 }

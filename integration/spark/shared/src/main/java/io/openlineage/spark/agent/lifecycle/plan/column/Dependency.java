@@ -1,21 +1,21 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark.agent.lifecycle.plan.column;
 
+import io.openlineage.client.utils.TransformationInfo;
 import java.util.Objects;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Setter;
 import org.apache.spark.sql.catalyst.expressions.ExprId;
 
 @AllArgsConstructor
 class Dependency {
-  @Getter @Setter private ExprId exprId;
+  @Getter private ExprId exprId;
 
-  @Getter @Setter private TransformationInfo transformationInfo;
+  @Getter private TransformationInfo transformationInfo;
 
   @Override
   public String toString() {
@@ -44,8 +44,13 @@ class Dependency {
 
   public Dependency merge(Dependency dependency) {
     if (this.transformationInfo != null) {
-      return new Dependency(
-          dependency.exprId, this.transformationInfo.merge(dependency.getTransformationInfo()));
+      TransformationInfo merged = this.transformationInfo.merge(dependency.getTransformationInfo());
+      if (merged.equals(transformationInfo)) {
+        // exactly the same dependency would work
+        return dependency;
+      } else {
+        return new Dependency(dependency.exprId, merged);
+      }
     }
     return new Dependency(dependency.exprId, null);
   }

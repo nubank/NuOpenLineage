@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
@@ -243,7 +243,11 @@ def on_starting(component):
 
 @hookimpl
 def before_stopping(component):
-    executor.shutdown(wait=False)
+    if executor:
+        # stom accepting new events
+        executor.shutdown(wait=False)
+    # block until all pending events are processed
+    adapter.close()
 
 
 @hookimpl

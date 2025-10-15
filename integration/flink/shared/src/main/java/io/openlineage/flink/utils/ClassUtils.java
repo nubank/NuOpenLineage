@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -42,6 +42,28 @@ public class ClassUtils {
       ClassUtils.class
           .getClassLoader()
           .loadClass("org.apache.iceberg.flink.source.StreamingMonitorFunction");
+      return true;
+    } catch (Exception e) {
+      // swallow- we don't care
+    }
+    return false;
+  }
+
+  public static boolean hasFlink2Classes() {
+    try {
+      ClassUtils.class
+          .getClassLoader()
+          .loadClass("org.apache.flink.streaming.api.lineage.LineageGraph");
+      return true;
+    } catch (Exception e) {
+      // swallow- we don't care
+    }
+    return false;
+  }
+
+  public static boolean hasAvroClasses() {
+    try {
+      ClassUtils.class.getClassLoader().loadClass("org.apache.avro.Schema");
       return true;
     } catch (Exception e) {
       // swallow- we don't care

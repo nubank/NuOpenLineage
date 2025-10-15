@@ -1,8 +1,7 @@
 {
   "eventType": "RUNNING",
   "run": {
-    "facets": {
-    }
+    "facets": {}
   },
   "job": {
     "namespace": "testPysparkRddToTable",
@@ -55,12 +54,6 @@
         },
         "lifecycleStateChange": {
           "lifecycleStateChange": "OVERWRITE"
-        }
-      },
-      "outputFacets": {
-        "outputStatistics": {
-          "rowCount": "${json-unit.any-number}",
-          "size": "${json-unit.any-number}"
         }
       }
     }

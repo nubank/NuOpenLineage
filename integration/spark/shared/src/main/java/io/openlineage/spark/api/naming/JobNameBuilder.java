@@ -1,20 +1,19 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark.api.naming;
 
-import static io.openlineage.spark.agent.lifecycle.ExecutionContext.CAMEL_TO_SNAKE_CASE;
 import static io.openlineage.spark.agent.util.DatabricksUtils.prettifyDatabricksJobName;
 
+import io.openlineage.client.job.Naming;
 import io.openlineage.spark.agent.util.DatabricksUtils;
 import io.openlineage.spark.api.JobNameSuffixProvider;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.SparkOpenLineageConfig;
 import io.openlineage.spark.api.SparkOpenLineageConfig.JobNameConfig;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -36,32 +35,27 @@ public class JobNameBuilder {
     }
 
     Optional<SparkConf> sparkConf = context.getSparkContext().map(SparkContext::getConf);
-    StringBuilder jobNameBuilder =
-        new StringBuilder(applicationJobNameResolver.getJobName(context));
+    Naming.Spark.SparkBuilder jobNameBuilder =
+        Naming.Spark.builder().appName(applicationJobNameResolver.getJobName(context));
 
     sparkNodeName(context)
         .ifPresent(
             nodeName ->
-                jobNameBuilder
-                    .append(JOB_NAME_PARTS_SEPARATOR)
-                    .append(replaceDots(context, normalizeName(nodeName))));
+                jobNameBuilder.command(replaceDots(context, NameNormalizer.normalize(nodeName))));
 
     String jobName;
     if (context.getOpenLineageConfig().getJobName() != null
         && !context.getOpenLineageConfig().getJobName().getAppendDatasetName()) {
       // no need to append output dataset name
-      jobName = normalizeName(jobNameBuilder.toString());
+      jobName = jobNameBuilder.build().getName();
     } else {
       // append output dataset as job suffix
-      jobNameBuilder.append(
+      jobNameBuilder.table(
           getJobSuffix(context)
-              .map(
-                  suffix ->
-                      JOB_NAME_PARTS_SEPARATOR
-                          + suffix.replace(JOB_NAME_PARTS_SEPARATOR, INNER_SEPARATOR))
-              .orElse(""));
+              .map(suffix -> suffix.replace(JOB_NAME_PARTS_SEPARATOR, INNER_SEPARATOR))
+              .orElse(null));
 
-      jobName = jobNameBuilder.toString();
+      jobName = jobNameBuilder.build().getName();
       if (sparkConf.isPresent() && DatabricksUtils.isRunOnDatabricksPlatform(sparkConf.get())) {
         jobName = prettifyDatabricksJobName(sparkConf.get(), jobName);
       }
@@ -72,8 +66,9 @@ public class JobNameBuilder {
   }
 
   public static String build(OpenLineageContext context, String rddSuffix) {
-    return normalizeName(
-        applicationJobNameResolver.getJobName(context) + JOB_NAME_PARTS_SEPARATOR + rddSuffix);
+    return applicationJobNameResolver.getJobName(context)
+        + JOB_NAME_PARTS_SEPARATOR
+        + NameNormalizer.normalize(rddSuffix);
   }
 
   private static String replaceDots(OpenLineageContext context, String jobName) {
@@ -120,11 +115,6 @@ public class JobNameBuilder {
       node = ((WholeStageCodegenExec) node).child();
     }
 
-    return Optional.ofNullable(node).map(SparkPlan::nodeName).map(JobNameBuilder::normalizeName);
-  }
-
-  // normalizes string, changes CamelCase to snake_case and replaces all non-alphanumerics with '_'
-  private static String normalizeName(String name) {
-    return name.replaceAll(CAMEL_TO_SNAKE_CASE, "_$1").toLowerCase(Locale.ROOT);
+    return Optional.ofNullable(node).map(SparkPlan::nodeName).map(NameNormalizer::normalize);
   }
 }

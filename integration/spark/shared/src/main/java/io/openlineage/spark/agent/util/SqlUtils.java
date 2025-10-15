@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -41,7 +41,7 @@ public class SqlUtils {
                               new DatasetIdentifier(
                                   getName(defaultDatabase, defaultSchema, dbtm.qualifiedName()),
                                   namespace),
-                              new OpenLineage.DatasetFacetsBuilder());
+                              datasetFactory.createCompositeFacetBuilder());
                         })
                     .collect(Collectors.toList()))
         .orElse(Collections.emptyList());

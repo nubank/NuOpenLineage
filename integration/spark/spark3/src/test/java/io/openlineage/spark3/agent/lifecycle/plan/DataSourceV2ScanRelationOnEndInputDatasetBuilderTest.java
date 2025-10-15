@@ -1,10 +1,12 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark3.agent.lifecycle.plan;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
@@ -13,10 +15,10 @@ import static org.mockito.Mockito.when;
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.InputDataset;
 import io.openlineage.spark.agent.lifecycle.SparkOpenLineageExtensionVisitorWrapper;
+import io.openlineage.spark.agent.util.DatasetVersionUtils;
 import io.openlineage.spark.api.DatasetFactory;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark3.agent.utils.DataSourceV2RelationDatasetExtractor;
-import io.openlineage.spark3.agent.utils.DatasetVersionDatasetFacetUtils;
 import java.util.List;
 import org.apache.spark.scheduler.SparkListenerApplicationEnd;
 import org.apache.spark.scheduler.SparkListenerApplicationStart;
@@ -81,19 +83,16 @@ class DataSourceV2ScanRelationOnEndInputDatasetBuilderTest {
 
     try (MockedStatic<DataSourceV2RelationDatasetExtractor> ignored =
         mockStatic(DataSourceV2RelationDatasetExtractor.class)) {
-      try (MockedStatic<DatasetVersionDatasetFacetUtils> facetUtilsMockedStatic =
-          mockStatic(DatasetVersionDatasetFacetUtils.class)) {
-        when(DataSourceV2RelationDatasetExtractor.extract(
-                factory, context, relation, datasetFacetsBuilder))
+      try (MockedStatic<DatasetVersionUtils> facetUtilsMockedStatic =
+          mockStatic(DatasetVersionUtils.class)) {
+        when(DataSourceV2RelationDatasetExtractor.extractIncludingVersionFacet(
+                eq(factory), eq(context), eq(relation), any()))
             .thenReturn(datasets);
 
         Assertions.assertThat(builder.apply(scanRelation)).isEqualTo(datasets);
 
         facetUtilsMockedStatic.verify(
-            () ->
-                DatasetVersionDatasetFacetUtils.includeDatasetVersion(
-                    context, datasetFacetsBuilder, relation),
-            times(0));
+            () -> DatasetVersionUtils.buildVersionFacets(eq(context), any(), any()), times(0));
       }
     }
   }

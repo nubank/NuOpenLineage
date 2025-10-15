@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -20,7 +20,9 @@ public interface Vendors {
   List<String> VENDORS =
       Arrays.asList(
           // Add vendor classes here
-          "io.openlineage.spark.agent.vendor.snowflake.SnowflakeVendor");
+          "io.openlineage.spark.agent.vendor.snowflake.SnowflakeVendor",
+          "io.openlineage.spark.agent.vendor.iceberg.IcebergVendor",
+          "io.openlineage.spark.agent.vendor.gcp.GcpVendor");
 
   static Vendors getVendors() {
     return getVendors(Collections.emptyList());
@@ -54,7 +56,7 @@ public interface Vendors {
     // and the app
     // https://github.com/OpenLineage/OpenLineage/issues/1860
     // ServiceLoader<Vendor> serviceLoader = ServiceLoader.load(Vendor.class);
-    return new VendorsImpl(vendors);
+    return new VendorsImpl(vendors, new VendorsContext());
   }
 
   static Vendors empty() {
@@ -69,10 +71,17 @@ public interface Vendors {
       public Collection<OpenLineageEventHandlerFactory> getEventHandlerFactories() {
         return Collections.emptyList();
       }
+
+      @Override
+      public VendorsContext getVendorsContext() {
+        return new VendorsContext();
+      }
     };
   }
 
   Collection<VisitorFactory> getVisitorFactories();
 
   Collection<OpenLineageEventHandlerFactory> getEventHandlerFactories();
+
+  VendorsContext getVendorsContext();
 }

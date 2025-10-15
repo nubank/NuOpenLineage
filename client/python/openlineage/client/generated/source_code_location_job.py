@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from openlineage.client.generated.base import JobFacet
 
 @attr.define
 class SourceCodeLocationJobFacet(JobFacet):
-    type: str
+    type: str  # noqa: A003
     """the source control system"""
 
     url: str = attr.field()

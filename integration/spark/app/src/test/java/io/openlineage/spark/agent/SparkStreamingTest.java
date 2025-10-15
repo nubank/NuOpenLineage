@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -147,13 +147,10 @@ class SparkStreamingTest {
 
     SparkSession spark =
         createSparkSession(server.getAddress().getPort(), "testKafkaSourceToKafkaSink");
-    spark.sparkContext().setLogLevel("ERROR");
 
-    String userDirProperty = System.getProperty("user.dir");
-    Path userDirPath = Paths.get(userDirProperty);
+    Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"));
 
-    Path checkpointsDir =
-        userDirPath.resolve("tmp").resolve("checkpoints").resolve(testUuid.toString());
+    Path checkpointsDir = tmpDir.resolve("checkpoints").resolve(testUuid.toString());
 
     Dataset<Row> sourceStream =
         readKafkaTopic(spark, kafkaContainer.sourceTopic, bootstrapServers)
@@ -249,7 +246,6 @@ class SparkStreamingTest {
 
     SparkSession spark =
         createSparkSession(server.getAddress().getPort(), "testKafkaSourceToBatchSink");
-    spark.sparkContext().setLogLevel("ERROR");
 
     Dataset<Row> sourceStream =
         readKafkaTopic(spark, kafkaContainer.sourceTopic, bootstrapServers)
@@ -320,7 +316,6 @@ class SparkStreamingTest {
 
     SparkSession spark =
         createSparkSession(server.getAddress().getPort(), "testKafkaSourceToJdbcBatchSink");
-    spark.sparkContext().setLogLevel("ERROR");
 
     Dataset<Row> sourceStream =
         readKafkaTopic(spark, kafkaContainer.sourceTopic, bootstrapServers)
@@ -391,8 +386,6 @@ class SparkStreamingTest {
     SparkSession spark =
         createSparkSession(httpServer.getAddress().getPort(), "testKafkaClusterResolveNamespace");
 
-    spark.sparkContext().setLogLevel("WARN");
-
     spark
         .readStream()
         .format("kafka")
@@ -434,8 +427,6 @@ class SparkStreamingTest {
 
     SparkSession spark =
         createSparkSession(server.getAddress().getPort(), "testReadFromCsvFilesInAStreamingMode");
-
-    spark.sparkContext().setLogLevel("INFO");
 
     spark
         .readStream()

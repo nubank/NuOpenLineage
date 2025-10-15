@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
@@ -77,6 +77,7 @@ class DbtCloudExtractor(BaseExtractor):
             connection = project["connection"]
             self.context["connection"] = connection
             self.context["job"] = job
+            self.context["project_name"] = project["name"]
 
         elif operator.task_type in [
             "DbtCloudJobRunSensor",
@@ -95,6 +96,7 @@ class DbtCloudExtractor(BaseExtractor):
             connection = project["connection"]
             self.context["connection"] = connection
             self.context["job"] = job
+            self.context["project_name"] = project["name"]
 
         return self.get_task_metadata()
 
@@ -176,6 +178,8 @@ class DbtCloudExtractor(BaseExtractor):
                 run_result=artifacts["run_results"],
                 profile=connection,
                 catalog=catalog,
+                project_name=self.context["project_name"],
+                account_id=account_id,
             )
 
             # parent run is an Airflow task triggering DBT Cloud run

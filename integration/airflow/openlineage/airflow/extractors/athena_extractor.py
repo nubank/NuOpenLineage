@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import List, Optional
@@ -132,5 +132,5 @@ class AthenaExtractor(BaseExtractor):
             )
 
         except Exception as e:
-            self.log.error(f"Cannot retrieve table metadata from Athena.Client. {e}", exc_info=True)
+            self.log.error("Cannot retrieve table metadata from Athena.Client: %s", e, exc_info=True)
             return None

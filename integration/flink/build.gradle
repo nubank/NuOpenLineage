@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -30,8 +30,9 @@ ext {
 }
 
 dependencies {
-    implementation(project(path: ":app"))
     implementation(project(path: ":shared"))
+    implementation(project(path: ":flink1"))
+    implementation(project(path: ":flink2"))
     implementation(project(path: ":flink115"))
     implementation(project(path: ":flink117"))
     implementation(project(path: ":flink118"))
@@ -57,6 +58,48 @@ test {
         excludeTags 'integration-test'
     }
 }
+
+task shadowTestApps(type: Exec) {
+    if (project.getProperty('flink.version').toString().startsWith("1")) {
+        workingDir 'examples/flink1-test-apps'
+        commandLine 'bash', '-c', "pwd && ./gradlew clean shadowJar -Pflink.version=${flinkVersion} && mkdir -p ../../fixtures && ls -halt build/libs && cp build/libs/flink-examples-stateful-*.jar ../../fixtures && ls -la ../../fixtures"
+        doLast {
+            println "Copied stateful-*.jar to fixtures directory"
+        }
+    } else {
+        workingDir 'examples/flink2-test-apps'
+        commandLine 'bash', '-c', "pwd && ./gradlew clean shadowJar -Pflink.version=${flinkVersion} && mkdir -p ../../fixtures && ls -halt build/libs && cp build/libs/flink2-*.jar ../../fixtures && ls -la ../../fixtures"
+        doLast {
+            println "Copied flink2-*.jar to fixtures directory"
+        }
+    }
+}
+
+def integrationTestConfiguration = {
+    forkEvery 1
+    maxParallelForks 1
+    testLogging {
+        events "passed", "skipped", "failed"
+        showStandardStreams = true
+    }
+    systemProperties = [
+            'flink.version': "${flinkVersion}",
+            'junit.platform.output.capture.stdout': 'true',
+            'junit.platform.output.capture.stderr': 'true',
+            '.flink.jar': "${archivesBaseName}-${project.version}.jar",
+    ]
+    classpath =  project.sourceSets.test.runtimeClasspath
+}
+
+
+task integrationTest(type: Test) {
+    configure integrationTestConfiguration
+    useJUnitPlatform {
+        includeTags "integration-test"
+    }
+}
+
+integrationTest.dependsOn(shadowJar, project.tasks.publishToMavenLocal, shadowTestApps)
 
 def reportsDir = "${buildDir}/reports"
 def coverageDir = "${reportsDir}/coverage"
@@ -152,6 +195,8 @@ publishing {
 nexusPublishing {
     repositories {
         sonatype {
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
             username = System.getenv('RELEASE_USERNAME')
             password = System.getenv('RELEASE_PASSWORD')
         }
@@ -168,8 +213,9 @@ signing {
 
 shadowJar {
     minimize() {
-        exclude(project(path: ":app"))
         exclude(project(path: ":shared"))
+        exclude(project(path: ":flink1"))
+        exclude(project(path: ":flink2"))
         exclude(project(path: ":flink115"))
         exclude(project(path: ":flink117"))
         exclude(project(path: ":flink118"))
@@ -179,14 +225,13 @@ shadowJar {
     relocate 'com.fasterxml.jackson', 'io.openlineage.flink.shaded.com.fasterxml.jackson'
     relocate 'com.github.ok2c.hc5', 'io.openlineage.flink.shaded.com.github.ok2c.hc5'
     relocate 'org.apache.httpcomponents.client5', 'io.openlineage.flink.shaded.org.apache.httpcomponents.client5'
-    relocate 'org.apache.http', 'io.openlineage.flink.shaded.org.apache.http'
     relocate 'javassist', 'io.openlineage.flink.shaded.javassist'
     relocate 'org.yaml', 'io.openlineage.flink.shaded.org.yaml'
     relocate 'org.apache.hc', 'io.openlineage.flink.shaded.org.apache.hc'
     relocate 'org.apache.commons.codec', 'io.openlineage.flink.shaded.org.apache.commons.codec'
     relocate 'org.apache.commons.lang3', 'io.openlineage.flink.shaded.org.apache.commons.lang3'
-    relocate "org.hdrhistogram", "io.openlineage.spark.shaded.org.hdrhistogram"
-    relocate "org.latencyutils", "io.openlineage.spark.shaded.org.latencyutils"
+    relocate "org.HdrHistogram", "io.openlineage.flink.shaded.org.hdrhistogram"
+    relocate "org.LatencyUtils", "io.openlineage.flink.shaded.org.latencyutils"
     dependencies {
         exclude(dependency('org.slf4j::'))
     }
@@ -213,7 +258,7 @@ assemble {
 }
 
 spotlessJava {
-    dependsOn("compileJava", "compileTestJava", ":examples:stateful:generateAvroJava")
+    dependsOn("compileJava", "compileTestJava")
 }
 
 task createVersionProperties(dependsOn: processResources) {

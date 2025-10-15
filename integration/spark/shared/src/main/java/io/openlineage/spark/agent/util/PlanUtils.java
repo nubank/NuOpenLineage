@@ -1,22 +1,23 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark.agent.util;
 
-import static io.openlineage.spark.agent.lifecycle.ExecutionContext.CAMEL_TO_SNAKE_CASE;
 import static io.openlineage.spark.agent.util.ScalaConversionUtils.asJavaOptional;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.spark.agent.Versions;
+import io.openlineage.spark.api.naming.NameNormalizer;
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -220,24 +221,60 @@ public class PlanUtils {
    * and namespace.
    *
    * @param parentRunId
-   * @param parentJob
+   * @param parentJobName
    * @param parentJobNamespace
    * @return
    */
   public static OpenLineage.ParentRunFacet parentRunFacet(
-      UUID parentRunId, String parentJob, String parentJobNamespace) {
+      UUID parentRunId,
+      String parentJobName,
+      String parentJobNamespace,
+      UUID rootParentRunId,
+      String rootParentJobName,
+      String rootParentJobNamespace) {
     return new OpenLineage(Versions.OPEN_LINEAGE_PRODUCER_URI)
         .newParentRunFacetBuilder()
         .run(new OpenLineage.ParentRunFacetRunBuilder().runId(parentRunId).build())
         .job(
             new OpenLineage.ParentRunFacetJobBuilder()
-                .name(parentJob.replaceAll(CAMEL_TO_SNAKE_CASE, "_$1").toLowerCase(Locale.ROOT))
+                .name(NameNormalizer.normalize(parentJobName))
                 .namespace(parentJobNamespace)
+                .build())
+        .root(
+            new OpenLineage.ParentRunFacetRootBuilder()
+                .run(new OpenLineage.RootRunBuilder().runId(rootParentRunId).build())
+                .job(
+                    new OpenLineage.RootJobBuilder()
+                        .namespace(rootParentJobNamespace)
+                        .name(rootParentJobName)
+                        .build())
                 .build())
         .build();
   }
 
-  public static Path getDirectoryPath(Path p, Configuration hadoopConf) {
+  /**
+   * Given a list of paths, it collects list of data location directories. For each path, a parent
+   * directory is taken and list of distinct locations is returned. Operation is optimized to check
+   * for each path if it was already added to the list of normalized paths.
+   *
+   * @param paths
+   * @param hadoopConf
+   * @return
+   */
+  public static List<Path> getDirectoryPaths(Collection<Path> paths, Configuration hadoopConf) {
+    LinkedHashSet<Path> normalizedPaths = new LinkedHashSet<>();
+    for (Path path : paths) {
+      // check if the root path is already contained in normalized Paths
+      Path parent = path.getParent();
+      if (parent != null && !normalizedPaths.contains(parent)) {
+        // if not, add new path to normalized paths -> call getDirectoryPath
+        normalizedPaths.add(PlanUtils.getDirectoryPath(path, hadoopConf));
+      }
+    }
+    return new ArrayList<>(normalizedPaths);
+  }
+
+  private static Path getDirectoryPath(Path p, Configuration hadoopConf) {
     try {
       if (p.getFileSystem(hadoopConf).getFileStatus(p).isFile()) {
         return p.getParent();
@@ -245,7 +282,7 @@ public class PlanUtils {
         return p;
       }
     } catch (IOException e) {
-      log.warn("Unable to get file system for path ", e);
+      log.warn("Unable to get file system for path: {}", e.getMessage());
       return p;
     }
   }
@@ -292,6 +329,9 @@ public class PlanUtils {
       return pfn.isDefinedAt(x);
     } catch (ClassCastException e) {
       // do nothing
+      return false;
+    } catch (TypeNotPresentException e) {
+      log.info("isDefinedAt method failed due to missing type: {}", e.getMessage());
       return false;
     } catch (Exception e) {
       if (e != null) {

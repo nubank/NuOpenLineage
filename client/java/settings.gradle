@@ -1,14 +1,16 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 rootProject.name = 'openlineage-java'
 
 include('generator')
-include('transports-dataplex')
+include('transports-gcplineage')
 include('transports-gcs')
+include('transports-kinesis')
 include('transports-s3')
+include('transports-datazone')
 
 buildCache {
     local {

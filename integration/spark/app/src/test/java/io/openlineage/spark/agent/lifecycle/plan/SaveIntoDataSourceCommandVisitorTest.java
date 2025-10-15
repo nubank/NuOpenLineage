@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -174,6 +174,20 @@ class SaveIntoDataSourceCommandVisitorTest {
     assertEquals("string", result.get(0).getFacets().getSchema().getFields().get(1).getType());
     assertEquals("postgres://127.0.0.1:5432", result.get(0).getNamespace());
     assertEquals("some_db.public.test_table", result.get(0).getName());
+  }
+
+  @Test
+  void testJobNameSuffixForTableOption() {
+    CreatableRelationProvider dataSource = mock(CreatableRelationProvider.class);
+    when(command.dataSource()).thenReturn(dataSource);
+
+    when(command.options())
+        .thenReturn(
+            (Map<String, String>)
+                ScalaConversionUtils.fromJavaMap(
+                    Collections.singletonMap("table", "my-target-table")));
+
+    assertThat(visitor.jobNameSuffix(command)).isPresent().get().isEqualTo("my-target-table");
   }
 
   abstract class DeltaDataSource implements CreatableRelationProvider {}

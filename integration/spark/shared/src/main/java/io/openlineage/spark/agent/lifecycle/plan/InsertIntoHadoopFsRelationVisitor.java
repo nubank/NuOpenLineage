@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -66,7 +66,7 @@ public class InsertIntoHadoopFsRelationVisitor
     if (command.catalogTable().isDefined()) {
       return Optional.of(
           PathUtils.fromCatalogTable(
-              command.catalogTable().get(), context.getSparkSession().get()));
+              command.catalogTable().get(), context.getSparkSession().get(), command.outputPath()));
     }
     return Optional.of(PathUtils.fromPath(command.outputPath()));
   }

@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -9,8 +9,6 @@ import org.apache.spark.package$;
 
 public class DatasetBuilderFactoryProvider {
 
-  private static final String SPARK2_FACTORY_NAME =
-      "io.openlineage.spark.agent.lifecycle.Spark2DatasetBuilderFactory";
   private static final String SPARK3_FACTORY_NAME =
       "io.openlineage.spark.agent.lifecycle.Spark3DatasetBuilderFactory";
   private static final String SPARK32_FACTORY_NAME =
@@ -38,9 +36,7 @@ public class DatasetBuilderFactoryProvider {
   }
 
   static String getDatasetBuilderFactoryForVersion(String version) {
-    if (version.startsWith("2.")) {
-      return SPARK2_FACTORY_NAME;
-    } else if (version.startsWith("3.2")) {
+    if (version.startsWith("3.2")) {
       return SPARK32_FACTORY_NAME;
     } else if (version.startsWith("3.3")) {
       return SPARK33_FACTORY_NAME;

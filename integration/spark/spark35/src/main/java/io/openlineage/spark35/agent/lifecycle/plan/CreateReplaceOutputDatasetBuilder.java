@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -7,7 +7,9 @@ package io.openlineage.spark35.agent.lifecycle.plan;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.LifecycleStateChangeDatasetFacet.LifecycleStateChange;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.client.utils.DatasetIdentifier;
+import io.openlineage.spark.agent.util.DatasetVersionUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.AbstractQueryPlanOutputDatasetBuilder;
@@ -88,13 +90,16 @@ public class CreateReplaceOutputDatasetBuilder
 
   protected List<OpenLineage.OutputDataset> apply(
       SparkListenerEvent event, CreateTableAsSelect plan) {
+    Map<String, String> tableProperties =
+        ScalaConversionUtils.<String, String>fromMap(plan.tableSpec().properties());
+    tableProperties.putAll(ScalaConversionUtils.<String, String>fromMap(plan.writeOptions()));
     return callCatalogMethod(plan.name())
         .map(
             catalogPlugin ->
                 apply(
                     event,
                     catalogPlugin,
-                    ScalaConversionUtils.<String, String>fromMap(plan.tableSpec().properties()),
+                    tableProperties,
                     plan.tableName(),
                     plan.tableSchema(),
                     LifecycleStateChange.CREATE))
@@ -117,13 +122,16 @@ public class CreateReplaceOutputDatasetBuilder
 
   protected List<OpenLineage.OutputDataset> apply(
       SparkListenerEvent event, ReplaceTableAsSelect plan) {
+    Map<String, String> tableProperties =
+        ScalaConversionUtils.<String, String>fromMap(plan.tableSpec().properties());
+    tableProperties.putAll(ScalaConversionUtils.<String, String>fromMap(plan.writeOptions()));
     return callCatalogMethod(plan.name())
         .map(
             catalogPlugin ->
                 apply(
                     event,
                     catalogPlugin,
-                    ScalaConversionUtils.<String, String>fromMap(plan.tableSpec().properties()),
+                    tableProperties,
                     plan.tableName(),
                     plan.tableSchema(),
                     LifecycleStateChange.OVERWRITE))
@@ -155,23 +163,22 @@ public class CreateReplaceOutputDatasetBuilder
     }
 
     OpenLineage openLineage = context.getOpenLineage();
-    OpenLineage.DatasetFacetsBuilder builder =
-        openLineage
-            .newDatasetFacetsBuilder()
-            .schema(PlanUtils.schemaFacet(openLineage, schema))
-            .lifecycleStateChange(
-                openLineage.newLifecycleStateChangeDatasetFacet(lifecycleStateChange, null))
-            .dataSource(PlanUtils.datasourceFacet(openLineage, di.get().getNamespace()));
+    DatasetCompositeFacetsBuilder builder = new DatasetCompositeFacetsBuilder(openLineage);
+    builder
+        .getFacets()
+        .schema(PlanUtils.schemaFacet(openLineage, schema))
+        .lifecycleStateChange(
+            openLineage.newLifecycleStateChangeDatasetFacet(lifecycleStateChange, null))
+        .dataSource(PlanUtils.datasourceFacet(openLineage, di.get().getNamespace()));
 
     if (includeDatasetVersion(event)) {
       Optional<String> datasetVersion =
           CatalogUtils3.getDatasetVersion(context, catalog, identifier, tableProperties);
       datasetVersion.ifPresent(
-          version -> builder.version(openLineage.newDatasetVersionDatasetFacet(version)));
+          version -> DatasetVersionUtils.buildVersionOutputFacets(context, builder, version));
     }
 
-    CatalogUtils3.getStorageDatasetFacet(context, catalog, tableProperties)
-        .map(storageDatasetFacet -> builder.storage(storageDatasetFacet));
+    CatalogUtils3.addStorageAndCatalogFacets(context, catalog, tableProperties, builder);
     return Collections.singletonList(outputDataset().getDataset(di.get(), builder));
   }
 

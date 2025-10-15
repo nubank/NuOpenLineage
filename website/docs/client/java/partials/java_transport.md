@@ -101,7 +101,18 @@ spark.openlineage.transport.headers.X-Some-Extra-Header=abc
 spark.openlineage.transport.compression=gzip
 ```
 
-<details><summary>URL parsing within Spark integration</summary>
+With SSL context:
+```ini
+spark.openlineage.transport.sslContext.storePassword=...
+spark.openlineage.transport.sslContext.keyPassword=...
+spark.openlineage.transport.sslContext.keyStoreType=...
+spark.openlineage.transport.sslContext.keyStorePath=...
+```
+where the config contains location of the keystore file, keystore password and its type.
+It should also contain key password.
+
+<details>
+<summary>URL parsing within Spark integration</summary>
 <p>
 
 You can supply http parameters using values in url, the parsed `spark.openlineage.*` properties are located in url as follows:
@@ -148,6 +159,17 @@ openlineage.transport.auth.apiKey=f38d2189-c603-4b46-bdea-e573a3b5a7d5
 openlineage.transport.headers.X-Some-Extra-Header=abc
 openlineage.transport.compression=gzip
 ```
+
+With SSL context:
+```ini
+openlineage.transport.sslContext.storePassword=...
+openlineage.transport.sslContext.keyPassword=...
+openlineage.transport.sslContext.keyStoreType=...
+openlineage.transport.sslContext.keyStorePath=...
+```
+where the config contains location of the keystore file, keystore password and its type.
+It should also contain key password.
+
 
 </TabItem>
 <TabItem value="java" label="Java Code">
@@ -216,8 +238,8 @@ httpConfig.setUrl("http://localhost:5000");
 httpConfig.setEndpoint("/api/v1/lineage");
 httpConfig.setUrlParams(queryParams);
 httpConfig.setAuth(apiKeyTokenProvider);
-httpConfig.setTimeoutInMillis(headers);
-httpConfig.setHeaders(5000);
+httpConfig.setTimeoutInMillis(5000);
+httpConfig.setHeaders(headers);
 httpConfig.setCompression(HttpConfig.Compression.GZIP);
 
 OpenLineageClient client = OpenLineageClient.builder()
@@ -225,6 +247,13 @@ OpenLineageClient client = OpenLineageClient.builder()
     new HttpTransport(httpConfig))
   .build();
 ```
+
+With SSL Context:
+```java
+ httpConfig.setSslContextConfig(new HttpSslContextConfig(keyStorePassword, keyPassword, keyStoreType, keyStoreFileName));
+```
+where the config contains location of the keystore file, keystore password and its type. 
+It should also contain key password. 
 
 </TabItem>
 </Tabs>
@@ -242,6 +271,7 @@ This transport requires the artifact `org.apache.kafka:kafka-clients:3.1.0` (or 
 - `messageKey` - string, key for all Kafka messages produced by transport. Optional, default value described below. Added in v1.13.0.
 
   Default values for `messageKey` are:
+  - `run:{rootJob.namespace}/{rootJob.name}` - for RunEvent with parent facet containing link to `root` job
   - `run:{parentJob.namespace}/{parentJob.name}` - for RunEvent with parent facet
   - `run:{job.namespace}/{job.name}` - for RunEvent
   - `job:{job.namespace}/{job.name}` - for JobEvent
@@ -322,7 +352,7 @@ kafkaProperties.setProperty("value.serializer", "org.apache.kafka.common.seriali
 KafkaConfig kafkaConfig = new KafkaConfig();
 KafkaConfig.setTopicName("openlineage.events");
 KafkaConfig.setProperties(kafkaProperties);
-KafkaConfig.setLocalServerId("some-value");
+KafkaConfig.setMessageKey("some-key");
 
 OpenLineageClient client = OpenLineageClient.builder()
   .transport(
@@ -338,98 +368,11 @@ It is recommended to provide `messageKey` if Job hierarchy is used. It can be an
 hierarchy, like `Airflow task -> Spark application`.
 
 Default values are:
+- `run:{rootJob.namespace}/{rootJob.name}` - for RunEvent with parent facet containing link to `root` job
 - `run:{parentJob.namespace}/{parentJob.name}/{parentRun.id}` - for RunEvent with parent facet
 - `run:{job.namespace}/{job.name}/{run.id}` - for RunEvent
 - `job:{job.namespace}/{job.name}` - for JobEvent
 - `dataset:{dataset.namespace}/{dataset.name}` - for DatasetEvent
-
-### [Kinesis](https://github.com/OpenLineage/OpenLineage/blob/main/client/java/src/main/java/io/openlineage/client/transports/KinesisTransport.java)
-
-If a transport type is set to `kinesis`, then the below parameters would be read and used when building KinesisProducer.
-Also, KinesisTransport depends on you to provide artifact `com.amazonaws:amazon-kinesis-producer:0.14.0` or compatible on your classpath.
-
-#### Configuration
-
-- `type` - string, must be `"kinesis"`. Required.
-- `streamName` - the streamName of the Kinesis. Required.
-- `region` - the region of the Kinesis. Required.
-- `roleArn` - the roleArn which is allowed to read/write to Kinesis stream. Optional.
-- `properties` - a dictionary that contains a [Kinesis allowed properties](https://github.com/awslabs/amazon-kinesis-producer/blob/master/java/amazon-kinesis-producer-sample/default_config.properties). Optional.
-
-#### Behavior
-
-- Events are serialized to JSON, and then dispatched to the Kinesis stream.
-- The partition key is generated as `{jobNamespace}:{jobName}`.
-- Two constructors are available: one accepting both `KinesisProducer` and `KinesisConfig` and another solely accepting `KinesisConfig`.
-
-#### Examples
-
-<Tabs groupId="integrations">
-<TabItem value="yaml" label="Yaml Config">
-
-```yaml
-transport:
-  type: kinesis
-  streamName: your_kinesis_stream_name
-  region: your_aws_region
-  roleArn: arn:aws:iam::account-id:role/role-name
-  properties:
-    VerifyCertificate: true
-    ConnectTimeout: 6000
-```
-
-</TabItem>
-<TabItem value="spark" label="Spark Config">
-
-```ini
-spark.openlineage.transport.type=kinesis
-spark.openlineage.transport.streamName=your_kinesis_stream_name
-spark.openlineage.transport.region=your_aws_region
-spark.openlineage.transport.roleArn=arn:aws:iam::account-id:role/role-name
-spark.openlineage.transport.properties.VerifyCertificate=true
-spark.openlineage.transport.properties.ConnectTimeout=6000
-```
-
-</TabItem>
-<TabItem value="flink" label="Flink Config">
-
-```ini
-openlineage.transport.type=kinesis
-openlineage.transport.streamName=your_kinesis_stream_name
-openlineage.transport.region=your_aws_region
-openlineage.transport.roleArn=arn:aws:iam::account-id:role/role-name
-openlineage.transport.properties.VerifyCertificate=true
-openlineage.transport.properties.ConnectTimeout=6000
-```
-
-</TabItem>
-<TabItem value="java" label="Java Code">
-
-```java
-import java.util.Properties;
-
-import io.openlineage.client.OpenLineageClient;
-import io.openlineage.client.transports.KinesisConfig;
-import io.openlineage.client.transports.KinesisTransport;
-
-Properties kinesisProperties = new Properties();
-kinesisProperties.setProperty("property_name_1", "value_1");
-kinesisProperties.setProperty("property_name_2", "value_2");
-
-KinesisConfig kinesisConfig = new KinesisConfig();
-kinesisConfig.setStreamName("your_kinesis_stream_name");
-kinesisConfig.setRegion("your_aws_region");
-kinesisConfig.setRoleArn("arn:aws:iam::account-id:role/role-name");
-kinesisConfig.setProperties(kinesisProperties);
-
-OpenLineageClient client = OpenLineageClient.builder()
-  .transport(
-    new KinesisTransport(httpConfig))
-  .build();
-```
-
-</TabItem>
-</Tabs>
 
 ### [Console](https://github.com/OpenLineage/OpenLineage/tree/main/client/java/src/main/java/io/openlineage/client/transports/ConsoleTransport.java)
 
@@ -559,7 +502,7 @@ OpenLineageClient client = OpenLineageClient.builder()
 </TabItem>
 </Tabs>
 
-## [Composite](https://github.com/OpenLineage/OpenLineage/tree/main/client/java/src/main/java/io/openlineage/client/transports/CompositeTransport.java)
+### [Composite](https://github.com/OpenLineage/OpenLineage/tree/main/client/java/src/main/java/io/openlineage/client/transports/CompositeTransport.java)
 
 The `CompositeTransport` is designed to combine multiple transports, allowing event emission to several destinations. This is useful when events need to be sent to multiple targets, such as a logging system and an API endpoint. The events are delivered sequentially - one after another in a defined order.
 
@@ -567,11 +510,12 @@ The `CompositeTransport` is designed to combine multiple transports, allowing ev
 
 - `type` - string, must be "composite". Required.
 - `transports` - a list or a map of transport configurations. Required.
-- `continueOnFailure` - boolean flag, determines if the process should continue even when one of the transports fails. Default is `false`.
+- `continueOnFailure` - boolean flag, determines if the process should continue even when one of the transports fails. Default is `true`.
+- `withThreadPool` - boolean flag, determines if a thread pool for parallel event emission should be kept between event emissions. Default is `true`.
 
 #### Behavior
 
-- The configured transports will be initialized and used in sequence to emit OpenLineage events.
+- The configured transports will be initialized and used in sequence (sorted by transport name) to emit OpenLineage events.
 - If `continueOnFailure` is set to `false`, a failure in one transport will stop the event emission process, and an exception will be raised.
 - If `continueOnFailure` is `true`, the failure will be logged, but the remaining transports will still attempt to send the event.
 
@@ -688,7 +632,7 @@ HttpConfig httpConfig = new HttpConfig();
 httpConfig.setUrl("http://example.com/api");
 KafkaConfig kafkaConfig = new KafkaConfig();
 KafkaConfig.setTopicName("openlineage.events");
-KafkaConfig.setLocalServerId("some-value");
+KafkaConfig.setMessageKey("some-key");
 
 CompositeConfig compositeConfig = new CompositeConfig(Arrays.asList(
   new HttpTransport(httpConfig),
@@ -704,15 +648,119 @@ OpenLineageClient client = OpenLineageClient.builder()
 </TabItem>
 </Tabs>
 
-### [Dataplex](https://github.com/OpenLineage/OpenLineage/blob/main/client/transports-dataplex/src/main/java/io/openlineage/client/transports/dataplex/DataplexTransport.java)
+### [Transform](https://github.com/OpenLineage/OpenLineage/tree/main/client/java/src/main/java/io/openlineage/client/transports/transform/TransformTransport.java)
 
-To use this transport in your project, you need to include `io.openlineage:transports-dataplex` artifact in
+The `TransformTransport` is designed to enable event manipulation before emitting the event. Together with `CompositeTransport`, it can be used to
+send different events into multiple backends.
+
+#### Configuration
+
+- `type` - string, must be "transform". Required.
+- `transformerClass` - class name of the event transformer. Class has to implement `io.openlineage.client.transports.transform.EventTransformer` interface and provide public no-arg constructor. Class needs to be available on the classpath. Required.
+- `transformerProperties` - Extra properties that can be passed into `transformerClass` based on the configuration. Optional.
+- `transport` - Transport configuration to emit modified events. Required.
+
+#### Behavior
+
+- The configured `transformerClass` will be used to alter events before the emission.
+- Modified events will be passed into the configured `transport` for further processing.
+- In case of returning `null`, the event will be skipped.
+
+#### `EventTransformer` interface
+
+```java
+public class CustomEventTransformer implements EventTransformer {
+  @Override
+  public void initialize(Map<String, String> properties) { ... }
+
+  @Override
+  public RunEvent transform(RunEvent event) { ... }
+
+  @Override
+  public DatasetEvent transform(DatasetEvent event) { .. }
+
+  @Override
+  public JobEvent transform(JobEvent event) { ... }
+}
+```
+
+#### Examples
+
+<Tabs groupId="integrations">
+<TabItem value="yaml" label="Yaml Config">
+
+```yaml
+transport:
+  type: transform
+  transformerClass: io.openlineage.CustomEventTransformer
+  transformerProperties:
+    key1: value1
+    key2: value2
+  transport:
+    type: http
+    url: http://example.com/api
+    name: my_http
+```
+
+</TabItem>
+<TabItem value="spark" label="Spark Config">
+
+```ini
+spark.openlineage.transport.type=transform
+spark.openlineage.transport.transformerClass=io.openlineage.CustomEventTransformer
+spark.openlineage.transport.transformerProperties.key1=value1
+spark.openlineage.transport.transformerProperties.key2=value2
+spark.openlineage.transport.transport.type=http
+spark.openlineage.transport.transport.url=http://example.com/api
+```
+
+</TabItem>
+<TabItem value="flink" label="Flink Config">
+
+```ini
+openlineage.transport.type=transform
+openlineage.transport.transformerClass=io.openlineage.CustomEventTransformer
+openlineage.transport.transformerProperties.key1=value1
+openlineage.transport.transformerProperties.key2=value2
+openlineage.transport.transport.type=http
+openlineage.transport.transport.url=http://example.com/api
+```
+
+</TabItem>
+<TabItem value="java" label="Java Code">
+
+```java
+import java.util.Arrays;
+import io.openlineage.client.OpenLineageClient;
+import io.openlineage.client.transports.TransformConfig;
+import io.openlineage.client.transports.HttpConfig;
+import io.openlineage.client.transports.HttpTransport;
+
+HttpConfig httpConfig = new HttpConfig();
+httpConfig.setUrl(URI.create("http://example.com/api"));
+
+TransformConfig transformConfig = new TransformConfig();
+transformConfig.setTransformerClass(CustomEventTransformer.class.getName());
+transformConfig.setTransport(httpConfig);
+
+OpenLineageClient client = OpenLineageClient
+    .builder()
+    .transport(new TransformTransport(transformConfig))
+    .build();
+```
+
+</TabItem>
+</Tabs>
+
+### [GcpLineage](https://github.com/OpenLineage/OpenLineage/blob/main/client/transports-dataplex/src/main/java/io/openlineage/client/transports/gcplineage/GcpLineageTransport.java)
+
+To use this transport in your project, you need to include `io.openlineage:transports-gcplineage` artifact in
 your build configuration. This is particularly important for environments like `Spark`, where this transport must be on
 the classpath for lineage events to be emitted correctly.
 
 #### Configuration
 
-- `type` - string, must be `"dataplex"`. Required.
+- `type` - string, must be `"gcplineage"`. Required.
 - `endpoint` - string, specifies the endpoint to which events are sent, default value is
   `datalineage.googleapis.com:443`. Optional.
 - `projectId` - string, the project quota identifier. If not provided, it is determined based on user credentials.
@@ -725,12 +773,12 @@ the classpath for lineage events to be emitted correctly.
   Optional, if not
   provided [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials)
   are used
-- `mode` - enum that specifies the type of client used for publishing OpenLineage events to Dataplex. Possible values:
+- `mode` - enum that specifies the type of client used for publishing OpenLineage events to GCP Lineage service. Possible values:
   `sync` (synchronous) or `async` (asynchronous). Optional, default: `async`.
 
 #### Behavior
 
-- Events are serialized to JSON, included as part of a `gRPC` request, and then dispatched to the `Dataplex` endpoint.
+- Events are serialized to JSON, included as part of a `gRPC` request, and then dispatched to the `GCP Lineage service` endpoint.
 - Depending on the `mode` chosen, requests are sent using either a synchronous or asynchronous client.
 
 #### Examples
@@ -740,7 +788,7 @@ the classpath for lineage events to be emitted correctly.
 
 ```yaml
 transport:
-  type: dataplex
+  type: gcplineage
   projectId: your_gcp_project_id
   location: us
   mode: sync
@@ -751,7 +799,7 @@ transport:
 <TabItem value="spark" label="Spark Config">
 
 ```ini
-spark.openlineage.transport.type=dataplex
+spark.openlineage.transport.type=gcplineage
 spark.openlineage.transport.projectId=your_gcp_project_id
 spark.openlineage.transport.location=us
 spark.openlineage.transport.mode=sync
@@ -762,7 +810,7 @@ spark.openlineage.transport.credentialsFile=path/to/credentials.json
 <TabItem value="flink" label="Flink Config">
 
 ```ini
-openlineage.transport.type=dataplex
+openlineage.transport.type=gcplineage
 openlineage.transport.projectId=your_gcp_project_id
 openlineage.transport.location=us
 openlineage.transport.mode=sync
@@ -774,20 +822,20 @@ openlineage.transport.credentialsFile=path/to/credentials.json
 
 ```java
 import io.openlineage.client.OpenLineageClient;
-import io.openlineage.client.transports.dataplex.DataplexConfig;
-import io.openlineage.client.transports.dataplex.DataplexTransport;
+import io.openlineage.client.transports.gcplineage.GcpLineageTransportConfig;
+import io.openlineage.client.transports.dataplex.GcpLineageTransport;
 
 
-DataplexConfig dataplexConfig = new DataplexConfig();
+GcpLineageTransportConfig gcplineageConfig = new GcpLineageTransportConfig();
 
-dataplexConfig.setProjectId("your_kinesis_stream_name");
-dataplexConfig.setLocation("your_aws_region");
-dataplexConfig.setMode("sync");
-dataplexConfig.setCredentialsFile("path/to/credentials.json");
+gcplineageConfig.setProjectId("your_gcp_project_id");
+gcplineageConfig.setLocation("your_gcp_location");
+gcplineageConfig.setMode(MODE.SYNC);
+gcplineageConfig.setCredentialsFile("path/to/credentials.json");
 
 OpenLineageClient client = OpenLineageClient.builder()
         .transport(
-                new DataplexTransport(dataplexConfig))
+                new GcpLineageTransport(gcplineageConfig))
         .build();
 ```
 
@@ -870,6 +918,72 @@ gcsConfig.setCredentialsFile("path/to/credentials.json");
 OpenLineageClient client = OpenLineageClient.builder()
         .transport(
                 new GcsTransport(dataplexConfig))
+        .build();
+```
+
+</TabItem>
+</Tabs>
+
+### [DataZone Transport](https://github.com/OpenLineage/OpenLineage/blob/main/client/java/transports-datazone/src/main/java/io/openlineage/client/transports/datazone/AmazonDataZoneTransport.java)
+
+To use this transport in your project, you need to include `io.openlineage:transports-datazone` artifact in
+your build configuration. This is particularly important for environments like `Spark`, where this transport must be on
+the classpath for lineage events to be emitted correctly.
+
+#### Configuration
+
+- `type` - string, must be `"amazon_datazone_api"`. Required.
+- `domainId` - string, specifies the DataZone / SageMaker Unified Studio domain id. The lineage events will be then sent to the following domain. Required.
+- `endpointOverride` - string, overrides the default HTTP endpoint for Amazon DataZone client.
+  Default value will be set by AWS SDK to [following endpoints](https://docs.aws.amazon.com/general/latest/gr/datazone.html#datazone_region) based on the region.
+  Optional, default: None
+
+#### Behavior
+
+- Events are serialized to JSON, and then dispatched to the `DataZone` / `SageMaker Unified Studio` endpoint.
+
+#### Examples
+
+<Tabs groupId="integrations">
+<TabItem value="yaml" label="Yaml Config">
+
+```yaml
+transport:
+  type: amazon_datazone_api
+  domainId: dzd-domain-id
+```
+
+</TabItem>
+<TabItem value="spark" label="Spark Config">
+
+```ini
+spark.openlineage.transport.type=amazon_datazone_api
+spark.openlineage.transport.domainId=dzd-domain-id
+```
+
+</TabItem>
+<TabItem value="flink" label="Flink Config">
+
+```ini
+openlineage.transport.type=amazon_datazone_api
+openlineage.transport.domainId=dzd-domain-id
+```
+
+</TabItem>
+<TabItem value="java" label="Java Code">
+
+```java
+import io.openlineage.client.OpenLineageClient;
+import io.openlineage.client.transports.datazone.AmazonDataZoneTransportConfig;
+import io.openlineage.client.transports.datazone.AmazonDataZoneTransport;
+
+AmazonDataZoneTransportConfig datazoneConfig = new AmazonDataZoneTransportConfig();
+
+datazoneConfig.setDomainId("dzd-domain-id");
+
+OpenLineageClient client = OpenLineageClient.builder()
+        .transport(
+                new AmazonDataZoneTransport(datazoneConfig))
         .build();
 ```
 

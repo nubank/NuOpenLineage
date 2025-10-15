@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 #
 # NOTE: This script was inspired by https://github.com/MarquezProject/marquez/blob/main/new-version.sh
@@ -47,8 +47,11 @@ usage() {
 # We do this check because bumpversion screws up the search/replace if the current_version and
 # new_version are the same
 function update_py_version_if_needed() {
+  # shellcheck disable=SC2086,SC2046
   export $(bump2version manual --new-version $1 --allow-dirty --list --dry-run | grep version | xargs)
+  # shellcheck disable=SC2154
   if [ "$new_version" != "$current_version" ]; then
+    # shellcheck disable=SC2086
     bump2version manual --new-version $1 --allow-dirty
   fi
 }
@@ -108,6 +111,7 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]] ; then
 fi
 
 # Ensure valid versions
+# shellcheck disable=SC2086,SC2206
 VERSIONS=($RELEASE_VERSION $NEXT_VERSION)
 for VERSION in "${VERSIONS[@]}"; do
   if [[ ! "${VERSION}" =~ ${SEMVER_REGEX} ]]; then
@@ -127,7 +131,7 @@ fi
 # the same version as what was expected the last time we released. E.g., if the next expected
 # release was a patch version, but a new minor version is being released, we need to update to the
 # actual release version prior to committing/tagging
-PYTHON_MODULES=(client/python/ integration/common/ integration/airflow/ integration/dbt/ integration/dagster/ integration/sql)
+PYTHON_MODULES=(client/python/ integration/common/ integration/airflow/ integration/dbt/ integration/dagster/ integration/sql/)
 for PYTHON_MODULE in "${PYTHON_MODULES[@]}"; do
   (cd "${PYTHON_MODULE}" && update_py_version_if_needed "${PYTHON_RELEASE_VERSION}")
 done
@@ -138,8 +142,10 @@ perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/sql/iface-
 perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/spark/gradle.properties
 perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/spark-extension-interfaces/gradle.properties
 perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/flink/gradle.properties
-perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/flink/examples/stateful/gradle.properties
-perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./proxy/backend/gradle.properties
+perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/flink/examples/flink1-test-apps/gradle.properties
+perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/flink/examples/flink2-test-apps/gradle.properties
+perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/hive/gradle.properties
+perl -i -pe"s/^version=.*/version=${RELEASE_VERSION}/g" ./integration/hive/hive-openlineage-hook/src/main/resources/io/openlineage/hive/client/version.properties
 
 # (3) Bump version in docs
 perl -i -pe"s/<version>.*/<version>${RELEASE_VERSION}<\/version>/g" ./integration/spark/README.md
@@ -150,7 +156,7 @@ perl -i -pe"s/<version>.*/<version>${RELEASE_VERSION}<\/version>/g" ./client/jav
 perl -i -pe"s/openlineage-java:[[:alnum:]\.-]*/openlineage-java:${RELEASE_VERSION}/g" ./client/java/README.md
 
 # (4) Prepare release commit
-git commit -sam "Prepare for release ${RELEASE_VERSION}"
+git commit --no-verify -sam "Prepare for release ${RELEASE_VERSION}"
 
 # (5) Pull latest tags, then prepare release tag
 git fetch --all --tags
@@ -174,16 +180,18 @@ perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/sql/iface-jav
 perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/spark/gradle.properties
 perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/spark-extension-interfaces/gradle.properties
 perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/flink/gradle.properties
-perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/flink/examples/stateful/gradle.properties
-perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./proxy/backend/gradle.properties
-echo "version ${NEXT_VERSION}" > integration/spark/spark2/src/test/resources/io/openlineage/spark/agent/version.properties
+perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/flink/examples/flink1-test-apps/gradle.properties
+perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/flink/examples/flink2-test-apps/gradle.properties
+perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/hive/gradle.properties
+perl -i -pe"s/^version=.*/version=${NEXT_VERSION}/g" ./integration/hive/hive-openlineage-hook/src/main/resources/io/openlineage/hive/client/version.properties
 echo "version ${NEXT_VERSION}" > integration/spark/spark3/src/test/resources/io/openlineage/spark/agent/version.properties
 echo "version ${NEXT_VERSION}" > integration/spark-extension-interfaces/src/test/resources/io/openlineage/spark/shade/extension/v1/lifecycle/plan/version.properties
 echo "version ${NEXT_VERSION}" > integration/flink/shared/src/test/resources/io/openlineage/flink/client/version.properties
-echo "version ${NEXT_VERSION}" > integration/flink/app/src/test/resources/io/openlineage/flink/client/version.properties
+echo "version ${NEXT_VERSION}" > integration/flink/flink1/src/test/resources/io/openlineage/flink/client/version.properties
+echo "version ${NEXT_VERSION}" > integration/flink/flink2/src/test/resources/io/openlineage/flink/client/version.properties
 
 # (7) Prepare next development version commit
-git commit -sam "Prepare next development version ${NEXT_VERSION}"
+git commit --no-verify -sam "Prepare next development version ${NEXT_VERSION}"
 
 # (8) Check for commits in log
 COMMITS=false
@@ -201,7 +209,7 @@ fi
 if [[ $COMMITS = "true" ]] && [[ ! ${PUSH} = "false" ]]; then
   git push origin main && git push origin "${RELEASE_VERSION}"
 else
-  echo "...skipping push; to push manually, use 'git push origin main && git push origin "${RELEASE_VERSION}"'"
+  echo "...skipping push; to push manually, use 'git push origin main && git push origin \"${RELEASE_VERSION}\"'"
 fi
 
 echo "DONE!"

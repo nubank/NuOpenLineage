@@ -1,4 +1,4 @@
-// Copyright 2018-2024 contributors to the OpenLineage project
+// Copyright 2018-2025 contributors to the OpenLineage project
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::test_utils::*;
@@ -54,6 +54,78 @@ fn table_reference_with_simple_q_ctes() {
             .collect::<Vec<String>>(),
         vec!["tab2"]
     )
+}
+
+#[test]
+fn table_complex() {
+    let output_1 = test_sql(
+        "
+        SELECT COL1
+        FROM
+        (
+            SELECT COL1
+            FROM
+                (
+                    SELECT 
+                    COL2
+                        AS COL1
+                    FROM TAB1
+                  ) INNER_QUERY
+        );",
+    )
+    .unwrap();
+
+    let output_2 = test_sql(
+        "
+        SELECT COL1
+        FROM
+        (
+            SELECT COL1
+            FROM
+                (
+                    SELECT 
+                    COL2
+                        AS COL1
+                    FROM TAB1
+                    )
+        );",
+    )
+    .unwrap();
+
+    let output_3 = test_sql(
+        "
+        SELECT COL1
+        FROM
+        (
+            SELECT COL1
+            FROM
+                (
+                    SELECT 
+                    COL2
+                        AS COL1
+                    FROM TAB1
+                    ) INNER_QUERY
+        ) OUTER_QUERY;",
+    )
+    .unwrap();
+
+    // assert all outputs are the same
+    assert_eq!(output_1, output_2);
+    assert_eq!(output_2, output_3);
+
+    assert_eq!(
+        output_1.column_lineage,
+        vec![ColumnLineage {
+            descendant: ColumnMeta {
+                origin: None,
+                name: "COL1".to_string()
+            },
+            lineage: vec![ColumnMeta {
+                origin: Some(table("TAB1")),
+                name: "COL2".to_string()
+            },]
+        }]
+    );
 }
 
 #[test]

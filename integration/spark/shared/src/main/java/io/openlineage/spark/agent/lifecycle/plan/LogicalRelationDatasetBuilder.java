@@ -1,15 +1,17 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
 package io.openlineage.spark.agent.lifecycle.plan;
 
 import io.openlineage.client.OpenLineage;
-import io.openlineage.client.OpenLineage.DatasetFacetsBuilder;
+import io.openlineage.client.OpenLineage.InputStatisticsInputDatasetFacetBuilder;
+import io.openlineage.client.dataset.DatasetCompositeFacetsBuilder;
 import io.openlineage.client.utils.DatasetIdentifier;
 import io.openlineage.spark.agent.lifecycle.plan.handlers.ExtensionLineageRelationHandler;
 import io.openlineage.spark.agent.lifecycle.plan.handlers.JdbcRelationHandler;
+import io.openlineage.spark.agent.util.DatasetVersionUtils;
 import io.openlineage.spark.agent.util.PathUtils;
 import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
@@ -27,12 +29,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.scheduler.SparkListenerEvent;
+import org.apache.spark.sql.catalyst.catalog.CatalogStatistics;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.HadoopFsRelation;
 import org.apache.spark.sql.execution.datasources.LogicalRelation;
 import org.apache.spark.sql.execution.datasources.jdbc.JDBCOptions;
 import org.apache.spark.sql.execution.datasources.jdbc.JDBCRelation;
+import org.apache.spark.sql.sources.BaseRelation;
 
 /**
  * {@link LogicalPlan} visitor that attempts to extract a {@link OpenLineage.Dataset} from a {@link
@@ -130,17 +134,39 @@ public class LogicalRelationDatasetBuilder<D extends OpenLineage.Dataset>
     DatasetIdentifier di =
         PathUtils.fromCatalogTable(catalogTable, context.getSparkSession().get());
 
-    OpenLineage.DatasetFacetsBuilder datasetFacetsBuilder =
-        context.getOpenLineage().newDatasetFacetsBuilder();
-    datasetFacetsBuilder.schema(PlanUtils.schemaFacet(context.getOpenLineage(), logRel.schema()));
-    datasetFacetsBuilder.dataSource(
-        PlanUtils.datasourceFacet(context.getOpenLineage(), di.getNamespace()));
+    DatasetCompositeFacetsBuilder datasetFacetsBuilder =
+        datasetFactory.createCompositeFacetBuilder();
+    datasetFacetsBuilder
+        .getFacets()
+        .schema(PlanUtils.schemaFacet(context.getOpenLineage(), logRel.schema()))
+        .dataSource(PlanUtils.datasourceFacet(context.getOpenLineage(), di.getNamespace()));
+
+    InputStatisticsInputDatasetFacetBuilder statsBuilder =
+        context.getOpenLineage().newInputStatisticsInputDatasetFacetBuilder();
+    ScalaConversionUtils.asJavaOptional(catalogTable.stats())
+        .map(CatalogStatistics::sizeInBytes)
+        .ifPresent(
+            bytes -> {
+              statsBuilder.size(bytes.longValue());
+              if (catalogTable.ignoredProperties().contains("numFiles")) {
+                statsBuilder.fileCount(
+                    Long.valueOf(catalogTable.ignoredProperties().get("numFiles").get()));
+              }
+              datasetFacetsBuilder.getInputFacets().inputStatistics(statsBuilder.build());
+            });
+    if (catalogTable.stats() == null || catalogTable.stats().isEmpty()) {
+      Optional.ofNullable(logRel.relation())
+          .map(BaseRelation::sizeInBytes)
+          .ifPresent(
+              size -> {
+                statsBuilder.size(size);
+                datasetFacetsBuilder.getInputFacets().inputStatistics(statsBuilder.build());
+              });
+    }
 
     getDatasetVersion(logRel)
-        .map(
-            version ->
-                datasetFacetsBuilder.version(
-                    context.getOpenLineage().newDatasetVersionDatasetFacet(version)));
+        .ifPresent(
+            v -> DatasetVersionUtils.buildVersionOutputFacets(context, datasetFacetsBuilder, v));
 
     return Collections.singletonList(datasetFactory.getDataset(di, datasetFacetsBuilder));
   }
@@ -155,13 +181,33 @@ public class LogicalRelationDatasetBuilder<D extends OpenLineage.Dataset>
                 Configuration hadoopConfig =
                     session.sessionState().newHadoopConfWithOptions(relation.options());
 
-                DatasetFacetsBuilder datasetFacetsBuilder =
-                    context.getOpenLineage().newDatasetFacetsBuilder();
+                DatasetCompositeFacetsBuilder datasetFacetsBuilder =
+                    datasetFactory.createCompositeFacetBuilder();
                 getDatasetVersion(x)
                     .map(
                         version ->
-                            datasetFacetsBuilder.version(
-                                context.getOpenLineage().newDatasetVersionDatasetFacet(version)));
+                            datasetFacetsBuilder
+                                .getFacets()
+                                .version(
+                                    context
+                                        .getOpenLineage()
+                                        .newDatasetVersionDatasetFacet(version)));
+
+                if (relation.inputFiles() != null) {
+                  datasetFacetsBuilder
+                      .getInputFacets()
+                      .inputStatistics(
+                          context
+                              .getOpenLineage()
+                              .newInputStatisticsInputDatasetFacetBuilder()
+                              .size(relation.sizeInBytes())
+                              .fileCount(
+                                  Optional.of(relation.inputFiles())
+                                      .map(l -> l.length)
+                                      .map(Long::valueOf)
+                                      .orElse(0L))
+                              .build());
+                }
 
                 Collection<Path> rootPaths =
                     ScalaConversionUtils.fromSeq(relation.location().rootPaths());
@@ -173,9 +219,7 @@ public class LogicalRelationDatasetBuilder<D extends OpenLineage.Dataset>
                           relation.schema(),
                           datasetFacetsBuilder));
                 } else {
-                  return rootPaths.stream()
-                      .map(p -> PlanUtils.getDirectoryPath(p, hadoopConfig))
-                      .distinct()
+                  return PlanUtils.getDirectoryPaths(rootPaths, hadoopConfig).stream()
                       .map(
                           p -> {
                             // TODO- refactor this to return a single partitioned dataset based on

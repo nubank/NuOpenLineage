@@ -1,4 +1,4 @@
-# Copyright 2018-2024 contributors to the OpenLineage project
+# Copyright 2018-2025 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
 
 import inspect
@@ -53,5 +53,5 @@ class PythonExtractor(BaseExtractor):
             # Trying to extract source code of builtin_function_or_method
             return str(callable)
         except OSError:
-            self.log.exception(f"Can't get source code facet of PythonOperator {self.operator.task_id}")
+            self.log.exception("Can't get source code facet of PythonOperator %s", self.operator.task_id)
         return None

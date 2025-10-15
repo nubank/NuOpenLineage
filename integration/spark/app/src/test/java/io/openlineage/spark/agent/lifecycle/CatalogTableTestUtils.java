@@ -1,5 +1,5 @@
 /*
-/* Copyright 2018-2024 contributors to the OpenLineage project
+/* Copyright 2018-2025 contributors to the OpenLineage project
 /* SPDX-License-Identifier: Apache-2.0
 */
 
@@ -64,6 +64,9 @@ public class CatalogTableTestUtils {
     params.add(Option.empty());
     params.add(Option.empty());
     params.add(Option.empty());
+    if (System.getProperty("spark.version").startsWith("4")) {
+      params.add(Option.empty());
+    }
     params.add(Seq$.MODULE$.<String>empty());
     params.add(false);
     params.add(false);

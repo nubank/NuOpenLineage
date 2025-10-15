@@ -1,6 +1,13 @@
 ---
 sidebar_position: 1
+title: About OpenLineage
+description: OpenLineage documentation
 ---
+<Head>
+  <meta property="og:title" content="Documentation | OpenLineage" />
+  <meta property="og:image" content="https://openlineage.io/img/docs-thumb.png" />
+  <meta property="twitter:image" content="https://openlineage.io/img/docs-thumb.png" />
+</Head>
 
 # About OpenLineage
 

@@ -14,22 +14,8 @@ import io.openlineage.client.OpenLineage.JobFacet;
 import io.openlineage.client.OpenLineage.OutputDataset;
 import io.openlineage.client.OpenLineage.OutputDatasetFacet;
 import io.openlineage.client.OpenLineage.RunFacet;
-import io.openlineage.spark.agent.facets.builder.CustomEnvironmentFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.DatabricksEnvironmentFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.DebugRunFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.ErrorFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.GcpJobFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.GcpRunFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.LogicalPlanRunFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.OutputStatisticsOutputDatasetFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.OwnershipJobFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.SparkApplicationDetailsFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.SparkJobDetailsFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.SparkProcessingEngineRunFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.SparkPropertyFacetBuilder;
-import io.openlineage.spark.agent.facets.builder.NuFacetBuilder;
+import io.openlineage.spark.agent.facets.builder.*;
 import io.openlineage.spark.agent.lifecycle.plan.column.ColumnLevelLineageVisitor;
-import io.openlineage.spark.agent.util.GCPUtils;
 import io.openlineage.spark.api.CustomFacetBuilder;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.OpenLineageEventHandlerFactory;
@@ -213,11 +199,10 @@ class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
                 new SparkProcessingEngineRunFacetBuilder(context),
                 new SparkApplicationDetailsFacetBuilder(context),
                 new NuFacetBuilder(context),
-                new SparkJobDetailsFacetBuilder());
+                new SparkJobDetailsFacetBuilder(),
+                new TagsRunFacetBuilder(context));
     if (DatabricksEnvironmentFacetBuilder.isDatabricksRuntime()) {
       listBuilder.add(new DatabricksEnvironmentFacetBuilder(context));
-    } else if (GCPUtils.isDataprocRuntime()) {
-      listBuilder.add(new GcpRunFacetBuilder(context));
     } else if (context.getCustomEnvironmentVariables() != null) {
       listBuilder.add(new CustomEnvironmentFacetBuilder(context));
     }
@@ -235,9 +220,7 @@ class InternalEventHandlerFactory implements OpenLineageEventHandlerFactory {
                     eventHandlerFactories, factory -> factory.createJobFacetBuilders(context)));
 
     listBuilder.add(new OwnershipJobFacetBuilder(context));
-    if (GCPUtils.isDataprocRuntime()) {
-      listBuilder.add(new GcpJobFacetBuilder(context));
-    }
+    listBuilder.add(new TagsJobFacetBuilder(context));
     return listBuilder.build();
   }
 
