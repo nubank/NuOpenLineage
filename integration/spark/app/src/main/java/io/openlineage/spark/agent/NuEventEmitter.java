@@ -29,7 +29,8 @@ public class NuEventEmitter {
             Arrays.asList(
                     ".execute_insert_into_hadoop_fs_relation_command.",
                     ".adaptive_spark_plan.",
-                    ".execute_save_into_data_source_command."
+                    ".execute_save_into_data_source_command.",
+                    ".execute_merge_into_command."
             )
     );
 
