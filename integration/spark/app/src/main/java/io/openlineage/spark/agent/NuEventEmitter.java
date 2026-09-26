@@ -65,12 +65,8 @@ public class NuEventEmitter {
     }
 
     private static Boolean shouldEmit(RunEvent event) {
-        if (Boolean.parseBoolean(System.getenv("NUOL_DISABLE_FILTERS"))) { log.warn("NuEventEmitter filters disabled, emitting event for job {}", event.getJob().getName()); return true; }
-        return Stream.of(
-                isPermittedJobType(event),
-                isPermitedEventType(event),
-                isPermittedJobName(event)
-        ).noneMatch(Boolean.FALSE::equals);
+        log.warn("NuEventEmitter filters removed (debug build), emitting event for job {}", event.getJob().getName());
+        return true;
     }
 
     private static Boolean shouldDiscardColumnLineageFacet(EventType eventType) {
