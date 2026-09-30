@@ -64,13 +64,32 @@ class NuEventEmitterTest {
     verify(eventEmitter, times(1)).emit(any());
   }
 
+  @Test
+  void deltaMergeCompleteEventWithoutTableSuffixIsEmitted() {
+    // The production job-name shape (MDP-566 test): suffix-less, ends right at the command.
+    OpenLineage.RunEvent event =
+        buildEvent(
+            "1_fc094_c9_6991_4ab5_9929_a7cfba52cbb4.execute_merge_into_command",
+            "SQL_JOB",
+            OpenLineage.RunEvent.EventType.COMPLETE);
+    EventEmitter eventEmitter = mock(EventEmitter.class);
+
+    NuEventEmitter.emit(event, eventEmitter);
+
+    verify(eventEmitter, times(1)).emit(any());
+  }
+
   @ParameterizedTest
   @ValueSource(
       strings = {
         "app.execute_insert_into_hadoop_fs_relation_command.target_table",
         "app.adaptive_spark_plan.target_table",
         "app.execute_save_into_data_source_command.target_table",
-        "app.execute_merge_into_command.target_table"
+        "app.execute_merge_into_command.target_table",
+        "app.execute_merge_into_command",
+        "app.execute_insert_into_hadoop_fs_relation_command",
+        "app.adaptive_spark_plan",
+        "app.execute_save_into_data_source_command"
       })
   void allowlistedCompleteEventsAreEmitted(String jobName) {
     OpenLineage.RunEvent event =
