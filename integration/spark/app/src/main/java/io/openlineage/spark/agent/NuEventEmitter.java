@@ -57,7 +57,11 @@ public class NuEventEmitter {
             log.debug("OpenLineage event has no job name and should not be emitted");
             return false;
         }
-        if (WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(jobName::contains)) {
+        // Allowlist entries are dot-delimited on both sides (`.command.`), but a real Delta MERGE
+        // job name is suffix-less (ends right at the command, no trailing dot). Pad with a trailing
+        // dot so both `…execute_merge_into_command` and `…execute_merge_into_command.table` match.
+        String normalizedJobName = jobName + ".";
+        if (WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(normalizedJobName::contains)) {
             log.debug("OpenLineage event job name {} has no permitted substring and should not be emitted", jobName);
             return false;
         }

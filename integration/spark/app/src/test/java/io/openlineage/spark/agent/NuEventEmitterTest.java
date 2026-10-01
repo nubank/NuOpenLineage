@@ -19,12 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/**
- * MDP-566: a Delta MERGE (job name segment `.execute_merge_into_command.`) was silently dropped
- * here because it wasn't in WANTED_EVENT_NAME_SUBSTRINGS, independent of the identical allowlist in
- * nubank/data-lineage's enhancement app. Locally reproduced that this is exactly the job-name
- * segment a real Delta 3.3.2 / Spark 3.5.3 MERGE produces (see MDP-566 for the reproduction).
- */
+/** MDP-566: job-name allowlist must match the suffix-less production Delta MERGE name. */
 class NuEventEmitterTest {
 
   private static final OpenLineage OL =
@@ -64,13 +59,31 @@ class NuEventEmitterTest {
     verify(eventEmitter, times(1)).emit(any());
   }
 
+  @Test
+  void deltaMergeCompleteEventWithoutTableSuffixIsEmitted() {
+    OpenLineage.RunEvent event =
+        buildEvent(
+            "1_fc094_c9_6991_4ab5_9929_a7cfba52cbb4.execute_merge_into_command",
+            "SQL_JOB",
+            OpenLineage.RunEvent.EventType.COMPLETE);
+    EventEmitter eventEmitter = mock(EventEmitter.class);
+
+    NuEventEmitter.emit(event, eventEmitter);
+
+    verify(eventEmitter, times(1)).emit(any());
+  }
+
   @ParameterizedTest
   @ValueSource(
       strings = {
         "app.execute_insert_into_hadoop_fs_relation_command.target_table",
         "app.adaptive_spark_plan.target_table",
         "app.execute_save_into_data_source_command.target_table",
-        "app.execute_merge_into_command.target_table"
+        "app.execute_merge_into_command.target_table",
+        "app.execute_merge_into_command",
+        "app.execute_insert_into_hadoop_fs_relation_command",
+        "app.adaptive_spark_plan",
+        "app.execute_save_into_data_source_command"
       })
   void allowlistedCompleteEventsAreEmitted(String jobName) {
     OpenLineage.RunEvent event =
