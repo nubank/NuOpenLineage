@@ -217,8 +217,8 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
                                 .flatMap(ScalaConversionUtils::asJavaOptional))
                     .map(job -> getSqlExecutionId(job.properties())))
         .map(Long::parseLong)
-        .map(id -> getExecutionContext(jobStart.jobId(), id))
-        .orElseGet(() -> getExecutionContext(jobStart.jobId()))
+        // Jobs outside a SQL execution get no context: NuEventEmitter only emits SQL_JOB events.
+        .flatMap(id -> getExecutionContext(jobStart.jobId(), id))
         .ifPresent(
             context -> {
               // set it in the rddExecutionRegistry so jobEnd is called
@@ -244,11 +244,14 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
     log.debug("onJobEnd called [{}].", jobEnd);
     ExecutionContext context = rddExecutionRegistry.remove(jobEnd.jobId());
     meterRegistry.counter("openlineage.spark.event.job.end").increment();
+    if (context == null) {
+      // No event will read this job's metrics, so release them now instead of leaking them.
+      jobMetrics.cleanUp(jobEnd.jobId());
+      return;
+    }
     circuitBreaker.run(
         () -> {
-          if (context != null) {
-            context.end(jobEnd);
-          }
+          context.end(jobEnd);
           return null;
         });
   }
@@ -262,26 +265,11 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
     jobMetrics.addMetrics(taskEnd.stageId(), taskEnd.taskMetrics());
   }
 
-  private ExecutionContext getSparkApplicationExecutionContext() {
-    Optional<SparkContext> sparkContext =
-        asJavaOptional(
-            SparkSession.getDefaultSession()
-                .map(sparkContextFromSession)
-                .orElse(activeSparkContext));
-    return contextFactory.createSparkApplicationExecutionContext(sparkContext.orElse(null));
-  }
-
   private Optional<ExecutionContext> getSparkSQLExecutionContext(long executionId) {
     return Optional.ofNullable(
         sparkSqlExecutionRegistry.computeIfAbsent(
             executionId,
             (e) -> contextFactory.createSparkSQLExecutionContext(executionId).orElse(null)));
-  }
-
-  private Optional<ExecutionContext> getExecutionContext(int jobId) {
-    return Optional.ofNullable(
-        rddExecutionRegistry.computeIfAbsent(
-            jobId, (e) -> contextFactory.createRddExecutionContext(jobId)));
   }
 
   private Optional<ExecutionContext> getExecutionContext(int jobId, long executionId) {
@@ -306,11 +294,7 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
         .counter("openlineage.spark.event.app.end.memoryusage")
         .increment(RuntimeUtils.getMemoryFractionUsage());
 
-    circuitBreaker.run(
-        () -> {
-          getSparkApplicationExecutionContext().end(applicationEnd);
-          return null;
-        });
+    // APPLICATION events are never emitted by NuEventEmitter, so they are not built.
     close();
     super.onApplicationEnd(applicationEnd);
   }
@@ -335,12 +319,6 @@ public class OpenLineageSparkListener extends org.apache.spark.scheduler.SparkLi
     meterRegistry
         .counter("openlineage.spark.event.app.start.memoryusage")
         .increment(RuntimeUtils.getMemoryFractionUsage());
-
-    circuitBreaker.run(
-        () -> {
-          getSparkApplicationExecutionContext().start(applicationStart);
-          return null;
-        });
   }
 
   private void initializeContextFactoryIfNotInitialized() {

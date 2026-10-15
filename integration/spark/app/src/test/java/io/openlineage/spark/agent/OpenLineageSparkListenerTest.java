@@ -7,7 +7,9 @@ package io.openlineage.spark.agent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -29,6 +31,7 @@ import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.SparkOpenLineageConfig;
 import java.net.URISyntaxException;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.UUID;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.SparkConf;
@@ -52,7 +55,6 @@ import org.apache.spark.sql.execution.ui.SparkListenerSQLExecutionStart;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import scala.Option;
 
@@ -105,7 +107,7 @@ class OpenLineageSparkListenerTest {
   }
 
   @Test
-  void testSqlEventWithJobEventEmitsOnce() {
+  void testSqlStartEmitsNothing() {
     LogicalPlan query = UnresolvedRelation$.MODULE$.apply(TableIdentifier.apply("tableName"));
 
     when(qe.optimizedPlan())
@@ -149,10 +151,7 @@ class OpenLineageSparkListenerTest {
       executionContext.start(event);
     }
 
-    ArgumentCaptor<OpenLineage.RunEvent> lineageEvent =
-        ArgumentCaptor.forClass(OpenLineage.RunEvent.class);
-
-    verify(emitter, times(1)).emit(lineageEvent.capture());
+    verify(emitter, never()).emit(any(OpenLineage.RunEvent.class));
   }
 
   @Test
@@ -191,10 +190,7 @@ class OpenLineageSparkListenerTest {
 
     listener.onApplicationStart(event);
 
-    ArgumentCaptor<OpenLineage.RunEvent> lineageEvent =
-        ArgumentCaptor.forClass(OpenLineage.RunEvent.class);
-
-    verify(emitter, times(1)).emit(lineageEvent.capture());
+    verify(emitter, never()).emit(any(OpenLineage.RunEvent.class));
   }
 
   @Test
@@ -207,12 +203,34 @@ class OpenLineageSparkListenerTest {
 
     listener.onApplicationEnd(event);
 
-    ArgumentCaptor<OpenLineage.RunEvent> lineageEvent =
-        ArgumentCaptor.forClass(OpenLineage.RunEvent.class);
-
-    verify(emitter, times(1)).emit(lineageEvent.capture());
+    verify(emitter, never()).emit(any(OpenLineage.RunEvent.class));
     // close emitter after session is stopped
     verify(emitter, times(1)).close();
+  }
+
+  @Test
+  void testJobOutsideSqlExecutionCreatesNoContextAndReleasesMetrics() {
+    ContextFactory contextFactory = mock(ContextFactory.class);
+    when(contextFactory.getMeterRegistry()).thenReturn(new SimpleMeterRegistry());
+    SparkListenerJobStart jobStart = mock(SparkListenerJobStart.class);
+    when(jobStart.jobId()).thenReturn(7);
+    when(jobStart.properties()).thenReturn(new Properties());
+    doReturn(ScalaConversionUtils.asScalaSeqEmpty()).when(jobStart).stageIds();
+    SparkListenerJobEnd jobEnd = mock(SparkListenerJobEnd.class);
+    when(jobEnd.jobId()).thenReturn(7);
+    JobMetricsHolder jobMetrics = mock(JobMetricsHolder.class);
+
+    try (MockedStatic<JobMetricsHolder> holder = mockStatic(JobMetricsHolder.class)) {
+      holder.when(JobMetricsHolder::getInstance).thenReturn(jobMetrics);
+      OpenLineageSparkListener listener = new OpenLineageSparkListener(sparkConf);
+      listener.skipInitializationForTests(contextFactory);
+
+      listener.onJobStart(jobStart);
+      listener.onJobEnd(jobEnd);
+    }
+
+    verify(contextFactory, never()).createRddExecutionContext(anyInt());
+    verify(jobMetrics).cleanUp(7);
   }
 
   @Test

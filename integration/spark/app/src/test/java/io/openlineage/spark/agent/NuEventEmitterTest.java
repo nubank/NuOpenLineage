@@ -5,6 +5,7 @@
 
 package io.openlineage.spark.agent;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,6 +18,7 @@ import java.time.ZonedDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** MDP-566: job-name allowlist must match the suffix-less production Delta MERGE name. */
@@ -123,17 +125,27 @@ class NuEventEmitterTest {
     verify(eventEmitter, never()).emit(any());
   }
 
-  @Test
-  void runningEventIsDiscardedEvenWithAllowlistedName() {
+  @ParameterizedTest
+  @EnumSource(
+      value = OpenLineage.RunEvent.EventType.class,
+      names = {"COMPLETE"},
+      mode = EnumSource.Mode.EXCLUDE)
+  void nonCompleteEventIsDiscardedEvenWithAllowlistedName(
+      OpenLineage.RunEvent.EventType eventType) {
     OpenLineage.RunEvent event =
-        buildEvent(
-            "app.execute_merge_into_command.target_table",
-            "SQL_JOB",
-            OpenLineage.RunEvent.EventType.RUNNING);
+        buildEvent("app.execute_merge_into_command.target_table", "SQL_JOB", eventType);
     EventEmitter eventEmitter = mock(EventEmitter.class);
 
     NuEventEmitter.emit(event, eventEmitter);
 
     verify(eventEmitter, never()).emit(any());
+  }
+
+  @Test
+  void jobNameCheckMatchesEmitDecision() {
+    assertThat(NuEventEmitter.isPermittedJobName("app.execute_merge_into_command")).isTrue();
+    assertThat(NuEventEmitter.isPermittedJobName("app.adaptive_spark_plan.target_table")).isTrue();
+    assertThat(NuEventEmitter.isPermittedJobName("app.some_other_command.target_table")).isFalse();
+    assertThat(NuEventEmitter.isPermittedJobName(null)).isFalse();
   }
 }

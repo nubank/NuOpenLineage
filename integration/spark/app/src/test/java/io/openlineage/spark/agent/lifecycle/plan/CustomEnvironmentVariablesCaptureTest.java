@@ -77,17 +77,14 @@ class CustomEnvironmentVariablesCaptureTest {
 
     ArgumentCaptor<RunEvent> lineageEvent = ArgumentCaptor.forClass(RunEvent.class);
 
-    Mockito.verify(SparkAgentTestExtension.EVENT_EMITTER, Mockito.atLeast(2))
+    Mockito.verify(SparkAgentTestExtension.EVENT_EMITTER, Mockito.atLeast(1))
         .emit(lineageEvent.capture());
     List<RunEvent> events = lineageEvent.getAllValues();
-    Optional<RunEvent> startEvent =
+    Optional<RunEvent> completeEvent =
         events.stream()
             .filter(
                 e ->
-                    e.getEventType().equals(EventType.START)
-                        && e.getJob().getFacets() != null
-                        // Exclude SparkApplication start event because env variable was set after
-                        && e.getJob().getFacets().getJobType().getJobType() != "APPLICATION"
+                    e.getEventType().equals(EventType.COMPLETE)
                         && e.getRun().getFacets() != null
                         && e.getRun()
                                 .getFacets()
@@ -95,8 +92,8 @@ class CustomEnvironmentVariablesCaptureTest {
                                 .get("environment-properties")
                             != null)
             .findFirst();
-    assertTrue(startEvent.isPresent());
-    RunEvent event = startEvent.get();
+    assertTrue(completeEvent.isPresent());
+    RunEvent event = completeEvent.get();
     EnvironmentFacet additionalProperties =
         (EnvironmentFacet)
             event.getRun().getFacets().getAdditionalProperties().get("environment-properties");

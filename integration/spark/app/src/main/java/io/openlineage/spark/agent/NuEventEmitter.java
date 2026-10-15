@@ -1,19 +1,15 @@
 package io.openlineage.spark.agent;
 
-import io.openlineage.client.OpenLineage;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.openlineage.client.OpenLineage.RunEvent.EventType;
 import static io.openlineage.client.OpenLineage.RunEvent;
-import static io.openlineage.client.OpenLineage.RunEvent.EventType.*;
+import static io.openlineage.client.OpenLineage.RunEvent.EventType.COMPLETE;
 import static java.util.Objects.isNull;
 
 @Slf4j
@@ -44,15 +40,18 @@ public class NuEventEmitter {
     }
 
     private static Boolean isPermitedEventType(RunEvent event) {
-        if (RUNNING.equals(event.getEventType())) {
-            log.debug("OpenLineage event is {} and should not be emitted", RUNNING);
+        if (!COMPLETE.equals(event.getEventType())) {
+            log.debug("OpenLineage event is {} and only {} events are emitted", event.getEventType(), COMPLETE);
             return false;
         }
         return true;
     }
 
     private static Boolean isPermittedJobName(RunEvent event) {
-        String jobName = event.getJob().getName();
+        return isPermittedJobName(event.getJob().getName());
+    }
+
+    public static boolean isPermittedJobName(String jobName) {
         if (isNull(jobName)) {
             log.debug("OpenLineage event has no job name and should not be emitted");
             return false;
@@ -76,38 +75,9 @@ public class NuEventEmitter {
         ).noneMatch(Boolean.FALSE::equals);
     }
 
-    private static Boolean shouldDiscardColumnLineageFacet(EventType eventType) {
-        return !COMPLETE.equals(eventType);
-    }
-
-    private static void discardColumnLineageFacet(RunEvent event) {
-        try {
-            Field columnLineageFacetField = OpenLineage.DatasetFacets.class.getDeclaredField("columnLineage");
-            columnLineageFacetField.setAccessible(true);
-            Stream
-                    .concat(event.getInputs().stream(), event.getOutputs().stream())
-                    .collect(Collectors.toList())
-                    .forEach(dataset -> {
-                        try {
-                            log.debug("Discarding column lineage facet for dataset {} {} {}",
-                                    dataset.getClass().getSimpleName(), dataset.getNamespace(), dataset.getName());
-                            columnLineageFacetField.set(dataset.getFacets(), null);
-                        } catch (IllegalAccessException e) {
-                            log.error("Failed to discard column lineage facet", e);
-                        }
-                    });
-        } catch (NoSuchFieldException e) {
-            log.error("Failed to discard column lineage facet: columnLineage field not found at OpenLineage.DatasetFacets", e);
-        }
-    }
-
     public static void emit(RunEvent event, EventEmitter eventEmitter) {
         if (!shouldEmit(event)) {
             return;
-        }
-
-        if (shouldDiscardColumnLineageFacet(event.getEventType())) {
-            discardColumnLineageFacet(event);
         }
 
         eventEmitter.emit(event);

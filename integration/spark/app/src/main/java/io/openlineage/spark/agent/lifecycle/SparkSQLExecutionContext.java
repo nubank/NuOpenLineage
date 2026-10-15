@@ -6,14 +6,10 @@
 package io.openlineage.spark.agent.lifecycle;
 
 import static io.openlineage.client.OpenLineage.RunEvent.EventType.COMPLETE;
-import static io.openlineage.client.OpenLineage.RunEvent.EventType.FAIL;
-import static io.openlineage.client.OpenLineage.RunEvent.EventType.RUNNING;
-import static io.openlineage.client.OpenLineage.RunEvent.EventType.START;
 import static io.openlineage.spark.agent.util.TimeUtils.toZonedTime;
 
 import io.openlineage.client.OpenLineage;
 import io.openlineage.client.OpenLineage.RunEvent;
-import io.openlineage.client.OpenLineage.RunEvent.EventType;
 import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.spark.agent.EventEmitter;
 import io.openlineage.spark.agent.NuEventEmitter;
@@ -23,7 +19,6 @@ import io.openlineage.spark.agent.util.PlanUtils;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.spark.api.naming.JobNameBuilder;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +29,7 @@ import org.apache.spark.scheduler.ActiveJob;
 import org.apache.spark.scheduler.JobFailed;
 import org.apache.spark.scheduler.SparkListenerApplicationEnd;
 import org.apache.spark.scheduler.SparkListenerApplicationStart;
+import org.apache.spark.scheduler.SparkListenerEvent;
 import org.apache.spark.scheduler.SparkListenerJobEnd;
 import org.apache.spark.scheduler.SparkListenerJobStart;
 import org.apache.spark.scheduler.SparkListenerStageCompleted;
@@ -84,38 +80,11 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (!olContext.getQueryExecution().isPresent()) {
       log.info(NO_EXECUTION_INFO, olContext);
       return;
-    } else if (EventFilterUtils.isDisabled(olContext, startEvent)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerSQLExecutionStart");
-      // return;
     }
 
     olContext.setActiveJobId(activeJobId);
-    // only one START event is expected, in case it was already sent with jobStart, we send running
-     EventType eventType = emittedOnJobStart ? RUNNING : START;
-     emittedOnSqlExecutionStart = true;
-
-    RunEvent event =
-        runEventBuilder.buildRun(
-            OpenLineageRunEventContext.builder()
-                .applicationParentRunFacet(buildApplicationParentFacet())
-                .event(startEvent)
-                .runEventBuilder(
-                    olContext
-                        .getOpenLineage()
-                        .newRunEventBuilder()
-                        .eventTime(toZonedTime(startEvent.time())))
-                .eventType(eventType)
-                .jobBuilder(buildJob())
-                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-                .build());
-
-    if (log.isDebugEnabled()) {
-      log.debug(
-          "Posting event for start {}: {}", executionId, OpenLineageClientUtils.toJson(event));
-    }
-
-    NuEventEmitter.emit(event, eventEmitter);
+    emittedOnSqlExecutionStart = true;
+    pinJobName();
   }
 
   @Override
@@ -130,117 +99,28 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (!olContext.getQueryExecution().isPresent()) {
       log.info(NO_EXECUTION_INFO, olContext);
       return;
-    } else if (EventFilterUtils.isDisabled(olContext, endEvent)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerSQLExecutionEnd");
-      //  return;
     }
 
-    // only one COMPLETE event is expected, verify if jobEnd was not emitted
-    EventType eventType;
-    if (emittedOnJobStart && !emittedOnJobEnd) {
-      // expecting jobEnd event later on
-      eventType = RUNNING;
-    } else {
-      eventType = COMPLETE;
-    }
     emittedOnSqlExecutionEnd = true;
-
-    RunEvent event =
-        runEventBuilder.buildRun(
-            OpenLineageRunEventContext.builder()
-                .applicationParentRunFacet(buildApplicationParentFacet())
-                .event(endEvent)
-                .runEventBuilder(
-                    olContext
-                        .getOpenLineage()
-                        .newRunEventBuilder()
-                        .eventTime(toZonedTime(endEvent.time())))
-                .eventType(eventType)
-                .jobBuilder(buildJob())
-                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-                .build());
-
-    if (eventType.equals(EventType.COMPLETE)) {
-      // clean up metrics on complete only
-      olContext.getActiveJobId().ifPresent(i -> JobMetricsHolder.getInstance().cleanUp(i));
-    }
-    if (log.isDebugEnabled()) {
-      log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
-    }
-    NuEventEmitter.emit(event, eventEmitter);
-  }
-
-  // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
-  @Override
-  public void start(SparkListenerStageSubmitted stageSubmitted) {
-    if (!olContext.getQueryExecution().isPresent()) {
-      log.info(NO_EXECUTION_INFO, olContext);
-      return;
-    } else if (EventFilterUtils.isDisabled(olContext, stageSubmitted)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageSubmitted");
-      // return;
-    }
-
-    RunEvent event =
-        runEventBuilder.buildRun(
-            OpenLineageRunEventContext.builder()
-                .applicationParentRunFacet(buildApplicationParentFacet())
-                .event(stageSubmitted)
-                .runEventBuilder(
-                    olContext
-                        .getOpenLineage()
-                        .newRunEventBuilder()
-                        .eventTime(ZonedDateTime.now(ZoneOffset.UTC)))
-                .eventType(RUNNING)
-                .jobBuilder(buildJob())
-                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-                .build());
-
-    if (log.isDebugEnabled()) {
+    if (emittedOnJobStart && !emittedOnJobEnd) {
       log.debug(
-          "Posting event for stage submitted {}: {}",
-          executionId,
-          OpenLineageClientUtils.toJson(event));
-    }
-    NuEventEmitter.emit(event, eventEmitter);
-  }
-
-  // TODO: not invoked until https://github.com/OpenLineage/OpenLineage/issues/470 is completed
-  @Override
-  public void end(SparkListenerStageCompleted stageCompleted) {
-    if (!olContext.getQueryExecution().isPresent()) {
-      log.info(NO_EXECUTION_INFO, olContext);
+          "SQL execution {} ended before its job: COMPLETE is sent on job end", executionId);
       return;
-    } else if (EventFilterUtils.isDisabled(olContext, stageCompleted)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerStageCompleted");
-      // return;
     }
-    RunEvent event =
-        runEventBuilder.buildRun(
-            OpenLineageRunEventContext.builder()
-                .applicationParentRunFacet(buildApplicationParentFacet())
-                .event(stageCompleted)
-                .runEventBuilder(
-                    olContext
-                        .getOpenLineage()
-                        .newRunEventBuilder()
-                        .eventTime(ZonedDateTime.now(ZoneOffset.UTC)))
-                .eventType(RUNNING)
-                .jobBuilder(buildJob())
-                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-                .build());
 
-    if (log.isDebugEnabled()) {
-      log.debug(
-          "Posting event for stage completed {}: {}",
-          executionId,
-          OpenLineageClientUtils.toJson(event));
-    }
-    NuEventEmitter.emit(event, eventEmitter);
+    emitComplete(
+        endEvent,
+        OpenLineageRunEventContext.builder().event(endEvent),
+        toZonedTime(endEvent.time()),
+        () ->
+            olContext.getActiveJobId().ifPresent(i -> JobMetricsHolder.getInstance().cleanUp(i)));
   }
+
+  @Override
+  public void start(SparkListenerStageSubmitted stageSubmitted) {}
+
+  @Override
+  public void end(SparkListenerStageCompleted stageCompleted) {}
 
   @Override
   public Optional<Integer> getActiveJobId() {
@@ -267,38 +147,10 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (!olContext.getQueryExecution().isPresent()) {
       log.info(NO_EXECUTION_INFO, olContext);
       return;
-    } else if (EventFilterUtils.isDisabled(olContext, jobStart)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerJobStart");
-      //  return;
     }
 
-    // only one START event is expected, in case it was already sent with sqlExecutionStart, we send
-    // running
-    EventType eventType = emittedOnSqlExecutionStart ? RUNNING : START;
     emittedOnJobStart = true;
-
-    RunEvent event =
-        runEventBuilder.buildRun(
-            OpenLineageRunEventContext.builder()
-                .applicationParentRunFacet(buildApplicationParentFacet())
-                .event(jobStart)
-                .runEventBuilder(
-                    olContext
-                        .getOpenLineage()
-                        .newRunEventBuilder()
-                        .eventTime(toZonedTime(jobStart.time())))
-                .eventType(eventType)
-                .jobBuilder(buildJob())
-                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-                .build());
-
-    if (log.isDebugEnabled()) {
-      log.debug(
-          "Posting event for start {}: {}", executionId, OpenLineageClientUtils.toJson(event));
-    }
-
-    NuEventEmitter.emit(event, eventEmitter);
+    pinJobName();
   }
 
   @Override
@@ -313,48 +165,72 @@ class SparkSQLExecutionContext implements ExecutionContext {
     if (!olContext.getQueryExecution().isPresent()) {
       log.info(NO_EXECUTION_INFO, olContext);
       return;
-    } else if (EventFilterUtils.isDisabled(olContext, jobEnd)) {
-      log.info(
-          "OpenLineage received Spark event that is configured to be skipped: SparkListenerJobEnd");
-      //  return;
     }
 
-    // only one COMPLETE event is expected,
-    EventType eventType;
-    if (jobEnd.jobResult() instanceof JobFailed) {
-      eventType = FAIL;
-    } else if (emittedOnSqlExecutionStart && !emittedOnSqlExecutionEnd) {
-      // still waiting for sqlExecutionEnd event which will emit COMPLETE event
-      eventType = RUNNING;
-    } else {
-      eventType = COMPLETE;
-    }
     emittedOnJobEnd = true;
-
-    RunEvent event =
-        runEventBuilder.buildRun(
-            OpenLineageRunEventContext.builder()
-                .applicationParentRunFacet(buildApplicationParentFacet())
-                .event(jobEnd)
-                .runEventBuilder(
-                    olContext
-                        .getOpenLineage()
-                        .newRunEventBuilder()
-                        .eventTime(toZonedTime(jobEnd.time())))
-                .eventType(eventType)
-                .jobBuilder(buildJob())
-                .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
-                .build());
-
-    if (eventType.equals(EventType.COMPLETE)) {
-      // clean up metrics on complete only
-      JobMetricsHolder.getInstance().cleanUp(jobEnd.jobId());
+    if (jobEnd.jobResult() instanceof JobFailed) {
+      log.debug(
+          "Job {} of SQL execution {} failed: FAIL events are not sent",
+          jobEnd.jobId(),
+          executionId);
+      return;
+    }
+    if (emittedOnSqlExecutionStart && !emittedOnSqlExecutionEnd) {
+      log.debug(
+          "Job {} ended before SQL execution {}: COMPLETE is sent on SQL execution end",
+          jobEnd.jobId(),
+          executionId);
+      return;
     }
 
+    emitComplete(
+        jobEnd,
+        OpenLineageRunEventContext.builder().event(jobEnd),
+        toZonedTime(jobEnd.time()),
+        () -> JobMetricsHolder.getInstance().cleanUp(jobEnd.jobId()));
+  }
+
+  // The job name is cached on first resolution; resolving it when the run starts keeps the
+  // COMPLETE event's name identical to the one previously taken from the START event.
+  private void pinJobName() {
+    JobNameBuilder.build(olContext);
+  }
+
+  private void emitComplete(
+      SparkListenerEvent sparkEvent,
+      OpenLineageRunEventContext.OpenLineageRunEventContextBuilder eventContext,
+      ZonedDateTime eventTime,
+      Runnable cleanUpMetrics) {
+    if (EventFilterUtils.isDisabled(olContext, sparkEvent)) {
+      log.info(
+          "OpenLineage received Spark event that is configured to be skipped: {}",
+          sparkEvent.getClass().getSimpleName());
+    }
+
+    RunEvent event = null;
+    if (NuEventEmitter.isPermittedJobName(JobNameBuilder.build(olContext))) {
+      event =
+          runEventBuilder.buildRun(
+              eventContext
+                  .applicationParentRunFacet(buildApplicationParentFacet())
+                  .runEventBuilder(
+                      olContext.getOpenLineage().newRunEventBuilder().eventTime(eventTime))
+                  .eventType(COMPLETE)
+                  .jobBuilder(buildJob())
+                  .jobFacetsBuilder(getJobFacetsBuilder(olContext.getQueryExecution().get()))
+                  .build());
+    }
+
+    // Metrics are read while building the event, so they can only be cleaned up afterwards.
+    cleanUpMetrics.run();
+
+    if (event == null) {
+      return;
+    }
     if (log.isDebugEnabled()) {
-      log.debug("Posting event for end {}: {}", executionId, OpenLineageClientUtils.toJson(event));
+      log.debug(
+          "Posting COMPLETE event for {}: {}", executionId, OpenLineageClientUtils.toJson(event));
     }
-
     NuEventEmitter.emit(event, eventEmitter);
   }
 
