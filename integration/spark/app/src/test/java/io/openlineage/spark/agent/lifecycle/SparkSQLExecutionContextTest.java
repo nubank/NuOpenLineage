@@ -219,6 +219,19 @@ class SparkSQLExecutionContextTest {
   }
 
   @Test
+  void plainAdaptiveSparkPlanIsBuiltWhenDatasetNamesAreNotAppended() {
+    SparkOpenLineageConfig config = new SparkOpenLineageConfig();
+    config.getJobName().setAppendDatasetName(false);
+    when(olContext.getOpenLineageConfig()).thenReturn(config);
+    when(queryExecution.executedPlan().nodeName()).thenReturn("AdaptiveSparkPlan");
+
+    context.start(mock(SparkListenerSQLExecutionStart.class));
+    context.end(mock(SparkListenerSQLExecutionEnd.class));
+
+    verify(runEventBuilder, times(1)).buildRun(any());
+  }
+
+  @Test
   void metricsAreCleanedUpAfterCompleteIsBuilt() {
     JobMetricsHolder jobMetrics = mock(JobMetricsHolder.class);
     try (MockedStatic<JobMetricsHolder> holder = mockStatic(JobMetricsHolder.class)) {

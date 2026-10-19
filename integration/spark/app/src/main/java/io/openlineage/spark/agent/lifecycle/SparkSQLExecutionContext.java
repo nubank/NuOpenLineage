@@ -196,6 +196,16 @@ class SparkSQLExecutionContext implements ExecutionContext {
     JobNameBuilder.build(olContext);
   }
 
+  // Without dataset names in job names, only the post-build output check tells writes apart.
+  private boolean shouldBuild(String jobName) {
+    if (!NuEventEmitter.isPermittedJobName(jobName)) {
+      return false;
+    }
+    boolean appendsDatasetName =
+        olContext.getOpenLineageConfig().getJobName().getAppendDatasetName();
+    return !(appendsDatasetName && NuEventEmitter.isPlainAdaptiveSparkPlan(jobName));
+  }
+
   private void emitComplete(
       SparkListenerEvent sparkEvent,
       OpenLineageRunEventContext.OpenLineageRunEventContextBuilder eventContext,
@@ -208,7 +218,7 @@ class SparkSQLExecutionContext implements ExecutionContext {
     }
 
     RunEvent event = null;
-    if (NuEventEmitter.isPermittedJobName(JobNameBuilder.build(olContext))) {
+    if (shouldBuild(JobNameBuilder.build(olContext))) {
       event =
           runEventBuilder.buildRun(
               eventContext
