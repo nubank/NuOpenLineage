@@ -84,7 +84,6 @@ class NuEventEmitterTest {
         "app.execute_merge_into_command.target_table",
         "app.execute_merge_into_command",
         "app.execute_insert_into_hadoop_fs_relation_command",
-        "app.adaptive_spark_plan",
         "app.execute_save_into_data_source_command"
       })
   void allowlistedCompleteEventsAreEmitted(String jobName) {
@@ -95,6 +94,17 @@ class NuEventEmitterTest {
     NuEventEmitter.emit(event, eventEmitter);
 
     verify(eventEmitter, times(1)).emit(any());
+  }
+
+  @Test
+  void plainAdaptiveSparkPlanWithoutTableSuffixIsDiscarded() {
+    OpenLineage.RunEvent event =
+        buildEvent("app.adaptive_spark_plan", "SQL_JOB", OpenLineage.RunEvent.EventType.COMPLETE);
+    EventEmitter eventEmitter = mock(EventEmitter.class);
+
+    NuEventEmitter.emit(event, eventEmitter);
+
+    verify(eventEmitter, never()).emit(any());
   }
 
   @Test
@@ -145,6 +155,7 @@ class NuEventEmitterTest {
   void jobNameCheckMatchesEmitDecision() {
     assertThat(NuEventEmitter.isPermittedJobName("app.execute_merge_into_command")).isTrue();
     assertThat(NuEventEmitter.isPermittedJobName("app.adaptive_spark_plan.target_table")).isTrue();
+    assertThat(NuEventEmitter.isPermittedJobName("app.adaptive_spark_plan")).isFalse();
     assertThat(NuEventEmitter.isPermittedJobName("app.some_other_command.target_table")).isFalse();
     assertThat(NuEventEmitter.isPermittedJobName(null)).isFalse();
   }

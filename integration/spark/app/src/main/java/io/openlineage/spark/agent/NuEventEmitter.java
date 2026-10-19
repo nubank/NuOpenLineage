@@ -30,6 +30,8 @@ public class NuEventEmitter {
             )
     );
 
+    private static final String PLAIN_ADAPTIVE_SPARK_PLAN = ".adaptive_spark_plan.";
+
     private static Boolean isPermittedJobType(RunEvent event) {
         String jobType = event.getJob().getFacets().getJobType().getJobType();
         if (WANTED_JOB_TYPES.stream().noneMatch(jobType::equals)) {
@@ -62,6 +64,11 @@ public class NuEventEmitter {
         String normalizedJobName = jobName + ".";
         if (WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(normalizedJobName::contains)) {
             log.debug("OpenLineage event job name {} has no permitted substring and should not be emitted", jobName);
+            return false;
+        }
+        // The table suffix is only appended when an output dataset resolves, so a plain one is a read.
+        if (normalizedJobName.endsWith(PLAIN_ADAPTIVE_SPARK_PLAN)) {
+            log.debug("OpenLineage event job name {} has no output dataset and should not be emitted", jobName);
             return false;
         }
         return true;
