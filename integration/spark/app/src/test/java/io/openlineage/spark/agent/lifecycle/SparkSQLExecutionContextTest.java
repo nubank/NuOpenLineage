@@ -93,8 +93,9 @@ class SparkSQLExecutionContextTest {
     when(olContext.getJobName()).thenAnswer(invocation -> jobName.get());
 
     when(eventEmitter.getOverriddenAppName()).thenReturn(Optional.of("test-rdd"));
-    // Resolves to the allowlisted job name `setup.adaptive_spark_plan`.
-    when(queryExecution.executedPlan().nodeName()).thenReturn("AdaptiveSparkPlan");
+    // Resolves to the allowlisted `setup.execute_insert_into_hadoop_fs_relation_command`.
+    when(queryExecution.executedPlan().nodeName())
+        .thenReturn("Execute InsertIntoHadoopFsRelationCommand");
 
     when(eventEmitter.getJobNamespace()).thenReturn("ns_name");
     when(eventEmitter.getApplicationRunId())
@@ -207,6 +208,30 @@ class SparkSQLExecutionContextTest {
   }
 
   @Test
+  void plainAdaptiveSparkPlanReadIsNotBuilt() {
+    when(queryExecution.executedPlan().nodeName()).thenReturn("AdaptiveSparkPlan");
+
+    context.start(mock(SparkListenerSQLExecutionStart.class));
+    context.end(mock(SparkListenerSQLExecutionEnd.class));
+
+    verify(runEventBuilder, never()).buildRun(any());
+    verify(eventEmitter, never()).emit(any());
+  }
+
+  @Test
+  void plainAdaptiveSparkPlanIsBuiltWhenDatasetNamesAreNotAppended() {
+    SparkOpenLineageConfig config = new SparkOpenLineageConfig();
+    config.getJobName().setAppendDatasetName(false);
+    when(olContext.getOpenLineageConfig()).thenReturn(config);
+    when(queryExecution.executedPlan().nodeName()).thenReturn("AdaptiveSparkPlan");
+
+    context.start(mock(SparkListenerSQLExecutionStart.class));
+    context.end(mock(SparkListenerSQLExecutionEnd.class));
+
+    verify(runEventBuilder, times(1)).buildRun(any());
+  }
+
+  @Test
   void metricsAreCleanedUpAfterCompleteIsBuilt() {
     JobMetricsHolder jobMetrics = mock(JobMetricsHolder.class);
     try (MockedStatic<JobMetricsHolder> holder = mockStatic(JobMetricsHolder.class)) {
@@ -228,7 +253,8 @@ class SparkSQLExecutionContextTest {
     when(queryExecution.executedPlan().nodeName()).thenReturn("SomeOtherCommand");
     context.end(mock(SparkListenerSQLExecutionEnd.class));
 
-    assertThat(singleEmittedEvent().getJob().getName()).isEqualTo("setup.adaptive_spark_plan");
+    assertThat(singleEmittedEvent().getJob().getName())
+        .isEqualTo("setup.execute_insert_into_hadoop_fs_relation_command");
   }
 
   @Test
@@ -256,7 +282,8 @@ class SparkSQLExecutionContextTest {
     runFullExecution();
 
     RunEvent runEvent = singleEmittedEvent();
-    assertThat(runEvent.getJob().getName()).isEqualTo("setup.adaptive_spark_plan");
+    assertThat(runEvent.getJob().getName())
+        .isEqualTo("setup.execute_insert_into_hadoop_fs_relation_command");
     assertThat(runEvent.getJob().getNamespace()).isEqualTo("ns_name");
     assertThat(runEvent.getRun().getRunId())
         .isEqualTo(UUID.fromString("8d99e33e-2a1c-4254-9600-18f23435fc3b"));

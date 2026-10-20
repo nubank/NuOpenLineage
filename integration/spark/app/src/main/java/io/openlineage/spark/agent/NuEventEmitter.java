@@ -30,6 +30,8 @@ public class NuEventEmitter {
             )
     );
 
+    private static final String ADAPTIVE_SPARK_PLAN = "adaptive_spark_plan";
+
     private static Boolean isPermittedJobType(RunEvent event) {
         String jobType = event.getJob().getFacets().getJobType().getJobType();
         if (WANTED_JOB_TYPES.stream().noneMatch(jobType::equals)) {
@@ -67,11 +69,30 @@ public class NuEventEmitter {
         return true;
     }
 
+    // `…<command>.adaptive_spark_plan` is a write to a table named adaptive_spark_plan, not a plain read.
+    public static boolean isPlainAdaptiveSparkPlan(String jobName) {
+        if (isNull(jobName) || !(jobName + ".").endsWith("." + ADAPTIVE_SPARK_PLAN + ".")) {
+            return false;
+        }
+        String beforeLastSegment = jobName.substring(0, jobName.length() - ADAPTIVE_SPARK_PLAN.length());
+        return WANTED_EVENT_NAME_SUBSTRINGS.stream().noneMatch(beforeLastSegment::endsWith);
+    }
+
+    private static Boolean isNotOutputlessAdaptiveSparkPlan(RunEvent event) {
+        boolean hasOutputs = event.getOutputs() != null && !event.getOutputs().isEmpty();
+        if (!hasOutputs && isPlainAdaptiveSparkPlan(event.getJob().getName())) {
+            log.debug("OpenLineage event {} has no output dataset and should not be emitted", event.getJob().getName());
+            return false;
+        }
+        return true;
+    }
+
     private static Boolean shouldEmit(RunEvent event) {
         return Stream.of(
                 isPermittedJobType(event),
                 isPermitedEventType(event),
-                isPermittedJobName(event)
+                isPermittedJobName(event),
+                isNotOutputlessAdaptiveSparkPlan(event)
         ).noneMatch(Boolean.FALSE::equals);
     }
 

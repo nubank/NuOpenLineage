@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import io.openlineage.client.OpenLineage;
 import java.net.URI;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -44,6 +45,20 @@ class NuEventEmitterTest {
         .eventType(eventType)
         .run(run)
         .job(job)
+        .build();
+  }
+
+  private OpenLineage.RunEvent buildEventWithOutput(String jobName) {
+    OpenLineage.RunEvent event =
+        buildEvent(jobName, "SQL_JOB", OpenLineage.RunEvent.EventType.COMPLETE);
+    return OL.newRunEventBuilder()
+        .eventTime(event.getEventTime())
+        .eventType(event.getEventType())
+        .run(event.getRun())
+        .job(event.getJob())
+        .outputs(
+            Collections.singletonList(
+                OL.newOutputDatasetBuilder().namespace("s3://bucket").name("table").build()))
         .build();
   }
 
@@ -84,8 +99,9 @@ class NuEventEmitterTest {
         "app.execute_merge_into_command.target_table",
         "app.execute_merge_into_command",
         "app.execute_insert_into_hadoop_fs_relation_command",
-        "app.adaptive_spark_plan",
-        "app.execute_save_into_data_source_command"
+        "app.execute_save_into_data_source_command",
+        "app.adaptive_spark_plan.adaptive_spark_plan",
+        "app.execute_save_into_data_source_command.adaptive_spark_plan"
       })
   void allowlistedCompleteEventsAreEmitted(String jobName) {
     OpenLineage.RunEvent event =
@@ -93,6 +109,26 @@ class NuEventEmitterTest {
     EventEmitter eventEmitter = mock(EventEmitter.class);
 
     NuEventEmitter.emit(event, eventEmitter);
+
+    verify(eventEmitter, times(1)).emit(any());
+  }
+
+  @Test
+  void plainAdaptiveSparkPlanWithoutTableSuffixIsDiscarded() {
+    OpenLineage.RunEvent event =
+        buildEvent("app.adaptive_spark_plan", "SQL_JOB", OpenLineage.RunEvent.EventType.COMPLETE);
+    EventEmitter eventEmitter = mock(EventEmitter.class);
+
+    NuEventEmitter.emit(event, eventEmitter);
+
+    verify(eventEmitter, never()).emit(any());
+  }
+
+  @Test
+  void plainAdaptiveSparkPlanWithOutputsIsEmitted() {
+    EventEmitter eventEmitter = mock(EventEmitter.class);
+
+    NuEventEmitter.emit(buildEventWithOutput("app.adaptive_spark_plan"), eventEmitter);
 
     verify(eventEmitter, times(1)).emit(any());
   }
@@ -147,5 +183,21 @@ class NuEventEmitterTest {
     assertThat(NuEventEmitter.isPermittedJobName("app.adaptive_spark_plan.target_table")).isTrue();
     assertThat(NuEventEmitter.isPermittedJobName("app.some_other_command.target_table")).isFalse();
     assertThat(NuEventEmitter.isPermittedJobName(null)).isFalse();
+  }
+
+  @Test
+  void plainAdaptiveSparkPlanIsOnlyTheSuffixlessCommand() {
+    assertThat(NuEventEmitter.isPlainAdaptiveSparkPlan("app.adaptive_spark_plan")).isTrue();
+    assertThat(NuEventEmitter.isPlainAdaptiveSparkPlan("app.adaptive_spark_plan.target_table"))
+        .isFalse();
+    assertThat(
+            NuEventEmitter.isPlainAdaptiveSparkPlan("app.adaptive_spark_plan.adaptive_spark_plan"))
+        .isFalse();
+    assertThat(
+            NuEventEmitter.isPlainAdaptiveSparkPlan(
+                "app.execute_save_into_data_source_command.adaptive_spark_plan"))
+        .isFalse();
+    assertThat(NuEventEmitter.isPlainAdaptiveSparkPlan("app.execute_merge_into_command")).isFalse();
+    assertThat(NuEventEmitter.isPlainAdaptiveSparkPlan(null)).isFalse();
   }
 }
