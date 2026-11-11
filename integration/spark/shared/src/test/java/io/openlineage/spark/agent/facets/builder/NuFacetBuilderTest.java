@@ -10,9 +10,11 @@ import static org.mockito.Mockito.mock;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.openlineage.client.OpenLineage;
+import io.openlineage.client.OpenLineageClientUtils;
 import io.openlineage.spark.agent.Versions;
 import io.openlineage.spark.agent.facets.NuDefaultFacet;
 import io.openlineage.spark.agent.facets.NuItaipuFacet;
+import io.openlineage.spark.agent.facets.NuRunFacet;
 import io.openlineage.spark.api.OpenLineageContext;
 import io.openlineage.client.OpenLineage.RunFacet;
 import io.openlineage.spark.agent.util.ScalaConversionUtils;
@@ -25,6 +27,8 @@ import io.openlineage.spark.api.SparkOpenLineageConfig;
 import org.apache.spark.scheduler.SparkListenerJobStart;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class NuFacetBuilderTest {
 
@@ -45,6 +49,7 @@ class NuFacetBuilderTest {
 
     openLineageContext.getSparkSession().ifPresent(spark -> {
         spark.conf().set("spark.job.name", "nurn:blablabla");
+        spark.conf().set("spark.job.dagRunType", "production");
         spark.conf().set("spark.job.resolvedInputsMap", "{\"s3a://path/to/datasetName\":\"datasetName\"}");
     });
 
@@ -63,7 +68,58 @@ class NuFacetBuilderTest {
                             assertThat(facet)
                                     .isInstanceOf(NuDefaultFacet.class)
                                     .hasFieldOrPropertyWithValue("jobNurn", "nurn:blablabla")
+                                    .hasFieldOrPropertyWithValue("dagRunType", "production")
                                     .hasFieldOrPropertyWithValue("resolvedInputs", expectedResolvedInputs));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"staging", "production"})
+  void testBuildDefaultFacetWithDagRunType(String dagRunType) {
+    SparkSession sparkSession = SparkSession.builder()
+            .master("local[*]")
+            .appName("testBuildDefaultFacetWithDagRunType")
+            .config("spark.openlineage.namespace", "spark_multirepo")
+            .getOrCreate();
+    sparkSession.conf().set("spark.job.dagRunType", dagRunType);
+
+    NuRunFacet facet = buildNuFacet(sparkSession);
+
+    assertThat(facet)
+            .isInstanceOf(NuDefaultFacet.class)
+            .hasFieldOrPropertyWithValue("dagRunType", dagRunType);
+    assertThat(OpenLineageClientUtils.toJson(facet))
+            .contains("\"dagRunType\":\"" + dagRunType + "\"");
+  }
+
+  @Test
+  void testBuildDefaultFacetWithoutDagRunType() {
+    SparkSession sparkSession = SparkSession.builder()
+            .master("local[*]")
+            .appName("testBuildDefaultFacetWithoutDagRunType")
+            .config("spark.openlineage.namespace", "spark_multirepo")
+            .getOrCreate();
+    sparkSession.conf().unset("spark.job.dagRunType");
+
+    NuRunFacet facet = buildNuFacet(sparkSession);
+
+    assertThat(facet)
+            .isInstanceOf(NuDefaultFacet.class)
+            .hasFieldOrPropertyWithValue("dagRunType", null);
+    assertThat(OpenLineageClientUtils.toJson(facet)).doesNotContain("dagRunType");
+  }
+
+  private NuRunFacet buildNuFacet(SparkSession sparkSession) {
+    OpenLineageContext openLineageContext = OpenLineageContext.builder()
+            .openLineage(new OpenLineage(Versions.OPEN_LINEAGE_PRODUCER_URI))
+            .sparkSession(sparkSession)
+            .meterRegistry(new SimpleMeterRegistry())
+            .openLineageConfig(new SparkOpenLineageConfig())
+            .build();
+    Map<String, NuRunFacet> runFacetMap = new HashMap<>();
+    new NuFacetBuilder(openLineageContext).build(
+            new SparkListenerJobStart(1, 1L, ScalaConversionUtils.asScalaSeqEmpty(), new Properties()),
+            runFacetMap::put);
+    return runFacetMap.get("nu_facets");
   }
 
     @Test

@@ -29,6 +29,9 @@ public class NuDefaultFacet extends NuRunFacet {
   @JsonProperty("jobNurn")
   private String jobNurn;
 
+  @JsonProperty("dagRunType")
+  private String dagRunType;
+
   /**
    * Resolved inputs for the job.
    * Map of input dataset NURNs by their location path
@@ -38,6 +41,10 @@ public class NuDefaultFacet extends NuRunFacet {
 
   private String getJobNurn(SparkSession sparkSession) {
     return getConfigValue("spark.job.name", sparkSession);
+  }
+
+  private String getDagRunType(SparkSession sparkSession) {
+    return getConfigValue("spark.job.dagRunType", sparkSession);
   }
 
   private Map<String, String> getResolvedInputs(SparkSession sparkSession) {
@@ -53,6 +60,7 @@ public class NuDefaultFacet extends NuRunFacet {
   public NuDefaultFacet(@NonNull SparkSession sparkSession) {
     super(Versions.OPEN_LINEAGE_PRODUCER_URI);
     this.jobNurn = getJobNurn(sparkSession);
+    this.dagRunType = getDagRunType(sparkSession);
     this.resolvedInputs = getResolvedInputs(sparkSession);
   }
 }
