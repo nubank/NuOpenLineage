@@ -31,6 +31,11 @@ public class NuFacetsUtils {
         }
     }
 
+    /** Like {@link #getConfigValue} but without the WARN, for keys that are expected to be absent. */
+    public static String getOptionalConfigValue(String key, SparkSession sparkSession) {
+        return sparkSession.conf().get(key, null);
+    }
+
     public static Map<String, String> getConfigValues(String prefix, RuntimeConfig configs) {
         return JavaConverters.mapAsJavaMap(configs.getAll()).entrySet().stream()
                 .filter(entry -> entry.getKey().startsWith(prefix))

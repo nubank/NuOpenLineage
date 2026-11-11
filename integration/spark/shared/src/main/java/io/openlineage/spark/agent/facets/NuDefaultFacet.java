@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.spark.sql.SparkSession;
 
 import static io.openlineage.spark.agent.util.NuFacetsUtils.getConfigValue;
+import static io.openlineage.spark.agent.util.NuFacetsUtils.getOptionalConfigValue;
 import static io.openlineage.spark.agent.util.NuFacetsUtils.parseJsonToMap;
 
 /** Captures information related to the Apache Spark job. */
@@ -44,7 +45,7 @@ public class NuDefaultFacet extends NuRunFacet {
   }
 
   private String getDagRunType(SparkSession sparkSession) {
-    return getConfigValue("spark.job.dagRunType", sparkSession);
+    return getOptionalConfigValue("spark.job.dagRunType", sparkSession);
   }
 
   private Map<String, String> getResolvedInputs(SparkSession sparkSession) {
